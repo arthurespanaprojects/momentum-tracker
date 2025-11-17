@@ -8,46 +8,46 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 220 25% 97%;
-    --foreground: 220 20% 15%;
+    --background: 250 100% 98%;
+    --foreground: 250 50% 10%;
 
     --card: 0 0% 100%;
-    --card-foreground: 220 20% 15%;
+    --card-foreground: 250 50% 10%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 220 20% 15%;
+    --popover-foreground: 250 50% 10%;
 
-    --primary: 185 75% 45%;
+    --primary: 280 85% 60%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 220 15% 92%;
-    --secondary-foreground: 220 20% 15%;
+    --secondary: 195 100% 50%;
+    --secondary-foreground: 0 0% 100%;
 
-    --muted: 220 15% 94%;
-    --muted-foreground: 220 10% 45%;
+    --muted: 250 30% 96%;
+    --muted-foreground: 250 20% 40%;
 
-    --accent: 35 90% 60%;
-    --accent-foreground: 220 20% 15%;
+    --accent: 340 100% 62%;
+    --accent-foreground: 0 0% 100%;
 
-    --success: 145 65% 45%;
+    --success: 160 85% 45%;
     --success-foreground: 0 0% 100%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 220 15% 88%;
-    --input: 220 15% 88%;
-    --ring: 185 75% 45%;
+    --border: 250 30% 88%;
+    --input: 250 30% 88%;
+    --ring: 280 85% 60%;
 
-    --radius: 0.75rem;
+    --radius: 1rem;
     
-    /* Heatmap colors */
-    --heat-0: 220 15% 96%;
-    --heat-1: 185 60% 92%;
-    --heat-2: 185 70% 80%;
-    --heat-3: 185 75% 65%;
-    --heat-4: 185 80% 50%;
-    --heat-5: 185 85% 40%;
+    /* Heatmap colors - vibrant purple to cyan gradient */
+    --heat-0: 250 30% 96%;
+    --heat-1: 280 70% 92%;
+    --heat-2: 270 80% 82%;
+    --heat-3: 260 90% 70%;
+    --heat-4: 240 95% 62%;
+    --heat-5: 195 100% 50%;
 
     --sidebar-background: 0 0% 98%;
 
@@ -67,52 +67,44 @@ All colors MUST be HSL.
   }
 
   .dark {
-    --background: 220 30% 8%;
-    --foreground: 220 15% 92%;
+    --background: 250 50% 6%;
+    --foreground: 250 30% 95%;
 
-    --card: 220 25% 12%;
-    --card-foreground: 220 15% 92%;
+    --card: 250 40% 10%;
+    --card-foreground: 250 30% 95%;
 
-    --popover: 220 25% 12%;
-    --popover-foreground: 220 15% 92%;
+    --popover: 250 40% 10%;
+    --popover-foreground: 250 30% 95%;
 
-    --primary: 185 75% 50%;
+    --primary: 280 85% 65%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 220 20% 16%;
-    --secondary-foreground: 220 15% 92%;
+    --secondary: 195 100% 55%;
+    --secondary-foreground: 0 0% 100%;
 
-    --muted: 220 20% 16%;
-    --muted-foreground: 220 10% 60%;
+    --muted: 250 30% 14%;
+    --muted-foreground: 250 20% 65%;
 
-    --accent: 35 90% 65%;
-    --accent-foreground: 220 30% 8%;
+    --accent: 340 100% 68%;
+    --accent-foreground: 0 0% 100%;
 
-    --success: 145 65% 50%;
+    --success: 160 85% 50%;
     --success-foreground: 0 0% 100%;
 
-    --destructive: 0 62.8% 50%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 84% 65%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 220 20% 18%;
-    --input: 220 20% 18%;
-    --ring: 185 75% 50%;
+    --border: 250 30% 18%;
+    --input: 250 30% 18%;
+    --ring: 280 85% 65%;
     
-    /* Heatmap colors */
-    --heat-0: 220 25% 12%;
-    --heat-1: 185 50% 20%;
-    --heat-2: 185 60% 30%;
-    --heat-3: 185 70% 40%;
-    --heat-4: 185 75% 50%;
-    --heat-5: 185 80% 60%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* Heatmap colors - vibrant for dark mode */
+    --heat-0: 250 40% 10%;
+    --heat-1: 280 60% 20%;
+    --heat-2: 270 70% 30%;
+    --heat-3: 260 80% 42%;
+    --heat-4: 240 90% 58%;
+    --heat-5: 195 100% 55%;
   }
 }
 
@@ -123,5 +115,11 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Space Grotesk', 'Inter', sans-serif;
+    font-weight: 700;
   }
 }
