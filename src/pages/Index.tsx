@@ -7,7 +7,6 @@ import { DailyMatrix } from "@/components/DailyMatrix";
 import { ActivityTimer } from "@/components/ActivityTimer";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2 } from "lucide-react";
 
 interface Activity {
   id: string;
@@ -40,7 +39,6 @@ const Index = () => {
   const loadDashboardData = async () => {
     setLoading(true);
     try {
-      // Load activities
       const { data: activitiesData, error: activitiesError } = await supabase
         .from("activities")
         .select("*")
@@ -52,7 +50,6 @@ const Index = () => {
       const activityList: Activity[] = activitiesData.map((a) => ({ id: a.id, name: a.name }));
       setActivities(activityList);
 
-      // Load entries for the week
       const weekDates = Array.from({ length: 7 }, (_, i) =>
         format(addDays(currentWeekStart, i), "yyyy-MM-dd")
       );
@@ -73,7 +70,6 @@ const Index = () => {
       });
       setEntries(entriesMap);
 
-      // Load goals and reflections
       const { data: goalsData } = await supabase
         .from("weekly_goals")
         .select("*")
@@ -135,7 +131,6 @@ const Index = () => {
         },
       }));
 
-      // Recalculate summary
       const weekDates = Array.from({ length: 7 }, (_, i) =>
         format(addDays(currentWeekStart, i), "yyyy-MM-dd")
       );
@@ -233,17 +228,26 @@ const Index = () => {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <div className="text-center">
+          <div className="text-6xl font-display font-bold text-primary mb-4 animate-pulse">
+            MOMENTUM
+          </div>
+          <p className="text-lg text-muted-foreground font-medium">Cargando datos...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background p-6">
-      <div className="max-w-7xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-foreground mb-2">Momentum</h1>
-          <p className="text-muted-foreground">Seguimiento de Hábitos y Objetivos</p>
+    <div className="min-h-screen bg-background p-8">
+      <div className="max-w-[1600px] mx-auto">
+        <div className="mb-10">
+          <h1 className="text-6xl font-display font-bold text-primary mb-3 tracking-tight">
+            MOMENTUM
+          </h1>
+          <p className="text-xl text-muted-foreground font-medium">
+            Seguimiento de Hábitos y Objetivos
+          </p>
         </div>
 
         <WeekNavigator
@@ -261,7 +265,9 @@ const Index = () => {
         />
 
         <div className="mb-8">
-          <h3 className="text-xl font-bold mb-4 text-foreground">Registro Diario</h3>
+          <h3 className="text-2xl font-display font-bold mb-6 text-foreground">
+            Registro Diario
+          </h3>
           <DailyMatrix
             weekStart={currentWeekStart}
             activities={activities}
