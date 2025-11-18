@@ -8,46 +8,49 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 250 100% 98%;
-    --foreground: 250 50% 10%;
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 250 50% 10%;
+    --card: 240 10% 8%;
+    --card-foreground: 0 0% 98%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 250 50% 10%;
+    --popover: 240 10% 8%;
+    --popover-foreground: 0 0% 98%;
 
-    --primary: 280 85% 60%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 142 76% 36%;
+    --primary-foreground: 0 0% 98%;
 
-    --secondary: 195 100% 50%;
-    --secondary-foreground: 0 0% 100%;
+    --secondary: 240 4% 16%;
+    --secondary-foreground: 0 0% 98%;
 
-    --muted: 250 30% 96%;
-    --muted-foreground: 250 20% 40%;
+    --muted: 240 4% 16%;
+    --muted-foreground: 240 5% 64.9%;
 
-    --accent: 340 100% 62%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 142 76% 36%;
+    --accent-foreground: 0 0% 98%;
 
-    --success: 160 85% 45%;
-    --success-foreground: 0 0% 100%;
-
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
-
-    --border: 250 30% 88%;
-    --input: 250 30% 88%;
-    --ring: 280 85% 60%;
-
-    --radius: 1rem;
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 98%;
     
-    /* Heatmap colors - vibrant purple to cyan gradient */
-    --heat-0: 250 30% 96%;
-    --heat-1: 280 70% 92%;
-    --heat-2: 270 80% 82%;
-    --heat-3: 260 90% 70%;
-    --heat-4: 240 95% 62%;
-    --heat-5: 195 100% 50%;
+    --warning: 48 96% 53%;
+    --warning-foreground: 240 10% 3.9%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 240 4% 16%;
+    --input: 240 4% 16%;
+    --ring: 142 76% 36%;
+
+    --radius: 0.5rem;
+    
+    /* Heatmap colors - emerald gradient */
+    --heat-0: 240 10% 8%;
+    --heat-1: 160 20% 20%;
+    --heat-2: 156 30% 28%;
+    --heat-3: 150 40% 36%;
+    --heat-4: 145 60% 42%;
+    --heat-5: 142 76% 36%;
 
     --sidebar-background: 0 0% 98%;
 
@@ -67,44 +70,47 @@ All colors MUST be HSL.
   }
 
   .dark {
-    --background: 250 50% 6%;
-    --foreground: 250 30% 95%;
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
 
-    --card: 250 40% 10%;
-    --card-foreground: 250 30% 95%;
+    --card: 240 10% 8%;
+    --card-foreground: 0 0% 98%;
 
-    --popover: 250 40% 10%;
-    --popover-foreground: 250 30% 95%;
+    --popover: 240 10% 8%;
+    --popover-foreground: 0 0% 98%;
 
-    --primary: 280 85% 65%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 142 76% 36%;
+    --primary-foreground: 0 0% 98%;
 
-    --secondary: 195 100% 55%;
-    --secondary-foreground: 0 0% 100%;
+    --secondary: 240 4% 16%;
+    --secondary-foreground: 0 0% 98%;
 
-    --muted: 250 30% 14%;
-    --muted-foreground: 250 20% 65%;
+    --muted: 240 4% 16%;
+    --muted-foreground: 240 5% 64.9%;
 
-    --accent: 340 100% 68%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 142 76% 36%;
+    --accent-foreground: 0 0% 98%;
 
-    --success: 160 85% 50%;
-    --success-foreground: 0 0% 100%;
-
-    --destructive: 0 84% 65%;
-    --destructive-foreground: 0 0% 100%;
-
-    --border: 250 30% 18%;
-    --input: 250 30% 18%;
-    --ring: 280 85% 65%;
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 98%;
     
-    /* Heatmap colors - vibrant for dark mode */
-    --heat-0: 250 40% 10%;
-    --heat-1: 280 60% 20%;
-    --heat-2: 270 70% 30%;
-    --heat-3: 260 80% 42%;
-    --heat-4: 240 90% 58%;
-    --heat-5: 195 100% 55%;
+    --warning: 48 96% 53%;
+    --warning-foreground: 240 10% 3.9%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 240 4% 16%;
+    --input: 240 4% 16%;
+    --ring: 142 76% 36%;
+    
+    /* Heatmap colors - emerald gradient */
+    --heat-0: 240 10% 8%;
+    --heat-1: 160 20% 20%;
+    --heat-2: 156 30% 28%;
+    --heat-3: 150 40% 36%;
+    --heat-4: 145 60% 42%;
+    --heat-5: 142 76% 36%;
   }
 }
 
@@ -121,5 +127,19 @@ All colors MUST be HSL.
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Space Grotesk', 'Inter', sans-serif;
     font-weight: 700;
+  }
+}
+
+@layer utilities {
+  .text-success {
+    color: hsl(var(--success));
+  }
+  
+  .bg-success {
+    background-color: hsl(var(--success));
+  }
+  
+  .border-success {
+    border-color: hsl(var(--success));
   }
 }

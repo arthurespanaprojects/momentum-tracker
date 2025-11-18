@@ -1,73 +1,144 @@
-# Welcome to your Lovable project
+# Momentum Tracker
 
-## Project info
+Aplicación de seguimiento de hábitos y objetivos semanales.
 
-**URL**: https://lovable.dev/projects/f38af56d-4f3e-425a-9b70-c255a3a383f4
+## Stack Tecnológico
 
-## How can I edit this code?
+- **Frontend**: React + TypeScript + Vite + Tailwind CSS
+- **Backend**: FastAPI (Python)
+- **Database**: Supabase (PostgreSQL)
 
-There are several ways of editing your application.
+## Configuración
 
-**Use Lovable**
+### Frontend (React)
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/f38af56d-4f3e-425a-9b70-c255a3a383f4) and start prompting.
+1. Instalar dependencias:
 
-Changes made via Lovable will be committed automatically to this repo.
+```bash
+npm install
+```
 
-**Use your preferred IDE**
+2. Configurar variables de entorno:
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+   - Copia `.env.example` a `.env`
+   - Añade tu `VITE_SUPABASE_ANON_KEY`
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+3. Ejecutar en desarrollo:
 
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+```bash
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+- Frontend disponible en: http://localhost:8080
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+### Backend (FastAPI)
 
-**Use GitHub Codespaces**
+1. Crear entorno virtual de Python:
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+```bash
+cd backend
+python -m venv venv
+```
 
-## What technologies are used for this project?
+2. Activar entorno virtual:
 
-This project is built with:
+```bash
+# Windows
+.\venv\Scripts\activate
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+# Linux/Mac
+source venv/bin/activate
+```
 
-## How can I deploy this project?
+3. Instalar dependencias:
 
-Simply open [Lovable](https://lovable.dev/projects/f38af56d-4f3e-425a-9b70-c255a3a383f4) and click on Share -> Publish.
+```bash
+pip install -r requirements.txt
+```
 
-## Can I connect a custom domain to my Lovable project?
+4. Configurar variables de entorno:
 
-Yes, you can!
+   - Copia `backend/.env.example` a `backend/.env`
+   - Añade tu `SUPABASE_KEY` (anon key)
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+5. Ejecutar servidor:
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+```bash
+python run.py
+```
+
+- API disponible en: http://localhost:8000
+- Documentación interactiva: http://localhost:8000/docs
+
+## Estructura del Proyecto
+
+```
+momentum-tracker/
+├── src/                    # Frontend React
+│   ├── components/         # Componentes React
+│   │   ├── ui/            # Componentes UI base
+│   │   └── ...            # Componentes de la aplicación
+│   ├── hooks/             # Custom React hooks
+│   ├── integrations/      # Cliente Supabase
+│   ├── lib/               # Utilidades
+│   └── pages/             # Páginas
+├── backend/               # Backend FastAPI
+│   ├── app/
+│   │   ├── api/          # Endpoints API
+│   │   │   ├── activities.py
+│   │   │   ├── entries.py
+│   │   │   ├── goals.py
+│   │   │   └── reflections.py
+│   │   ├── core/         # Configuración
+│   │   │   ├── config.py
+│   │   │   └── database.py
+│   │   ├── models/       # Modelos Pydantic
+│   │   │   └── schemas.py
+│   │   └── main.py       # Aplicación FastAPI
+│   ├── requirements.txt
+│   └── run.py
+└── supabase/             # Migraciones DB
+```
+
+## API Endpoints
+
+### Activities
+
+- `GET /api/activities` - Listar actividades
+- `POST /api/activities` - Crear actividad
+- `GET /api/activities/{id}` - Obtener actividad
+- `DELETE /api/activities/{id}` - Eliminar actividad
+
+### Daily Entries
+
+- `GET /api/entries` - Listar entradas (filtros: activity_id, start_date, end_date)
+- `POST /api/entries` - Crear/actualizar entrada
+- `GET /api/entries/{id}` - Obtener entrada
+
+### Weekly Goals
+
+- `GET /api/goals` - Listar metas (filtro: week_start_date)
+- `POST /api/goals` - Crear/actualizar meta
+
+### Weekly Reflections
+
+- `GET /api/reflections` - Listar reflexiones (filtro: week_start_date)
+- `POST /api/reflections` - Crear/actualizar reflexión
+
+## Base de Datos (Supabase)
+
+Tablas:
+
+- `activities` - Actividades a rastrear
+- `daily_entries` - Registro diario de horas
+- `weekly_goals` - Objetivos semanales
+- `weekly_reflections` - Reflexiones semanales
+
+## Desarrollo
+
+Para desarrollo simultáneo:
+
+1. Terminal 1: `npm run dev` (Frontend)
+2. Terminal 2: `cd backend && python run.py` (Backend)
+
+- `weekly_reflections` - Reflexiones semanales

@@ -1,16 +1,16 @@
 import { useState, useEffect } from "react";
-import { Play, Pause, Square } from "lucide-react";
+import { Play, Pause, Square, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 
 interface ActivityTimerProps {
   activityId: string | null;
   activityName: string;
-  onStop: (activityId: string, hours: number) => void;
+  previousMinutes: number;
+  onStop: (activityId: string, minutes: number) => void;
   onCancel: () => void;
 }
 
-export function ActivityTimer({ activityId, activityName, onStop, onCancel }: ActivityTimerProps) {
+export function ActivityTimer({ activityId, activityName, previousMinutes, onStop, onCancel }: ActivityTimerProps) {
   const [isActive, setIsActive] = useState(false);
   const [startTime, setStartTime] = useState<number>(Date.now());
   const [pausedTime, setPausedTime] = useState(0);
@@ -54,12 +54,19 @@ export function ActivityTimer({ activityId, activityName, onStop, onCancel }: Ac
     if (!activityId) return;
     
     const totalSeconds = pausedTime + (isActive ? Math.floor((Date.now() - startTime) / 1000) : 0);
-    const hours = totalSeconds / 3600;
+    const minutes = Math.floor(totalSeconds / 60);
     
-    onStop(activityId, hours);
+    onStop(activityId, minutes);
     setIsActive(false);
     setPausedTime(0);
     setDisplayTime(0);
+  };
+
+  const handleCancel = () => {
+    setIsActive(false);
+    setPausedTime(0);
+    setDisplayTime(0);
+    onCancel();
   };
 
   const formatTime = (seconds: number) => {
@@ -69,25 +76,105 @@ export function ActivityTimer({ activityId, activityName, onStop, onCancel }: Ac
     return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   };
 
+  const formatMinutes = (mins: number) => {
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    if (h > 0) {
+      return `${h}h ${m}m`;
+    }
+    return `${m}m`;
+  };
+
   if (!activityId) return null;
 
+  const newMinutes = Math.floor(displayTime / 60);
+  const totalMinutes = previousMinutes + newMinutes;
+
   return (
-    <Card className="fixed bottom-6 right-6 p-4 shadow-lg border-primary">
-      <div className="flex items-center gap-4">
-        <div className="flex-1">
-          <p className="text-sm text-muted-foreground">Cronometrando</p>
-          <p className="font-semibold text-foreground">{activityName}</p>
-          <p className="text-2xl font-mono text-primary">{formatTime(displayTime)}</p>
+    <div className="fixed inset-0 bg-background z-50 flex items-center justify-center">
+      <div className="w-full max-w-2xl p-8 space-y-8">
+        {/* Header */}
+        <div className="text-center space-y-2">
+          <div className="text-sm text-muted-foreground uppercase tracking-wider">
+            Cronometrando
+          </div>
+          <h1 className="text-5xl font-bold text-foreground">
+            {activityName}
+          </h1>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="icon" onClick={handlePause}>
-            {isActive ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+
+        {/* Main Timer Display */}
+        <div className="text-center">
+          <div className="text-8xl font-mono font-bold text-primary mb-4">
+            {formatTime(displayTime)}
+          </div>
+          <div className="text-xl text-muted-foreground">
+            {isActive ? "En progreso..." : "Pausado"}
+          </div>
+        </div>
+
+        {/* Time Summary */}
+        <div className="grid grid-cols-3 gap-4 text-center">
+          <div className="p-4 bg-muted rounded-lg">
+            <div className="text-sm text-muted-foreground mb-1">Tiempo Previo</div>
+            <div className="text-2xl font-semibold text-foreground">
+              {formatMinutes(previousMinutes)}
+            </div>
+          </div>
+          <div className="p-4 bg-primary/10 rounded-lg border-2 border-primary">
+            <div className="text-sm text-muted-foreground mb-1">Nuevo Tiempo</div>
+            <div className="text-2xl font-semibold text-primary">
+              {formatMinutes(newMinutes)}
+            </div>
+          </div>
+          <div className="p-4 bg-muted rounded-lg">
+            <div className="text-sm text-muted-foreground mb-1">Total del Día</div>
+            <div className="text-2xl font-semibold text-foreground">
+              {formatMinutes(totalMinutes)}
+            </div>
+          </div>
+        </div>
+
+        {/* Controls */}
+        <div className="flex justify-center gap-4">
+          <Button
+            variant="outline"
+            size="lg"
+            onClick={handlePause}
+            className="w-32 h-16 text-lg"
+          >
+            {isActive ? (
+              <>
+                <Pause className="mr-2 h-6 w-6" />
+                Pausar
+              </>
+            ) : (
+              <>
+                <Play className="mr-2 h-6 w-6" />
+                Reanudar
+              </>
+            )}
           </Button>
-          <Button variant="default" size="icon" onClick={handleStop}>
-            <Square className="h-4 w-4" />
+          <Button
+            variant="default"
+            size="lg"
+            onClick={handleStop}
+            className="w-32 h-16 text-lg"
+          >
+            <Square className="mr-2 h-6 w-6" />
+            Terminar
+          </Button>
+          <Button
+            variant="destructive"
+            size="lg"
+            onClick={handleCancel}
+            className="w-32 h-16 text-lg"
+          >
+            <X className="mr-2 h-6 w-6" />
+            Cancelar
           </Button>
         </div>
       </div>
-    </Card>
+    </div>
   );
 }
