@@ -39,17 +39,21 @@ const Index = () => {
   const [timerActivity, setTimerActivity] = useState<{ id: string; name: string } | null>(null);
   const { toast } = useToast();
 
-  const handleReorderActivities = async (activityId: string, direction: 'up' | 'down') => {
-    const currentIndex = activities.findIndex(a => a.id === activityId);
-    if (currentIndex === -1) return;
+  const handleReorderActivities = async (fromActivityId: string, toActivityId: string) => {
+    const fromIndex = activities.findIndex(a => a.id === fromActivityId);
+    const toIndex = activities.findIndex(a => a.id === toActivityId);
     
-    const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
-    if (newIndex < 0 || newIndex >= activities.length) return;
+    if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) return;
 
     // Reordenar localmente primero para feedback inmediato
     const newActivities = [...activities];
-    const [movedActivity] = newActivities.splice(currentIndex, 1);
-    newActivities.splice(newIndex, 0, movedActivity);
+    const [movedActivity] = newActivities.splice(fromIndex, 1);
+    
+    // Ajustar el índice de destino si estamos moviendo hacia abajo
+    // Cuando removemos un elemento antes del destino, el índice del destino disminuye en 1
+    const adjustedToIndex = fromIndex < toIndex ? toIndex - 1 : toIndex;
+    newActivities.splice(adjustedToIndex, 0, movedActivity);
+    
     setActivities(newActivities);
 
     // Actualizar display_order en la base de datos
@@ -74,6 +78,35 @@ const Index = () => {
       });
       // Recargar datos si falla
       loadDashboardData();
+    }
+  };
+
+  const handleMoveToEnd = async (activityId: string) => {
+    const currentIndex = activities.findIndex(a => a.id === activityId);
+    if (currentIndex === -1 || currentIndex === activities.length - 1) return;
+
+    // Mover al final
+    const newActivities = [...activities];
+    const [movedActivity] = newActivities.splice(currentIndex, 1);
+    newActivities.push(movedActivity);
+    
+    setActivities(newActivities);
+
+    // Actualizar display_order en la base de datos
+    try {
+      const updates = newActivities.map((activity, index) => ({
+        id: activity.id,
+        display_order: index
+      }));
+
+      for (const update of updates) {
+        await supabase
+          .from('activities')
+          .update({ display_order: update.display_order })
+          .eq('id', update.id);
+      }
+    } catch (error) {
+      console.error('Error moving to end:', error);
     }
   };
 
@@ -327,6 +360,8 @@ const Index = () => {
           onUpdateEntry={handleUpdateEntry}
           onStartTimer={(id, name) => setTimerActivity({ id, name })}
           onActivityAdded={loadDashboardData}
+          onReorderActivities={handleReorderActivities}
+          onMoveToEnd={handleMoveToEnd}
         />
 
         <ActivityTimer

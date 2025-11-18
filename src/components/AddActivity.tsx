@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { Pencil, Check, X, Eye, EyeOff } from "lucide-react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
@@ -11,13 +12,38 @@ interface AddActivityProps {
   onClose: () => void;
 }
 
+interface Activity {
+  id: string;
+  name: string;
+  is_active: boolean;
+  activity_type: "time" | "count";
+}
+
 export const AddActivity = ({ onActivityAdded, onClose }: AddActivityProps) => {
   const [newActivityName, setNewActivityName] = useState("");
   const [activityType, setActivityType] = useState<"time" | "count">("time");
   const [targetValue, setTargetValue] = useState("");
   const [timeUnit, setTimeUnit] = useState<"hours" | "minutes">("hours");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState("");
   const { toast } = useToast();
+
+  useEffect(() => {
+    loadActivities();
+  }, []);
+
+  const loadActivities = async () => {
+    const { data, error } = await supabase
+      .from("activities")
+      .select("*")
+      .order("display_order");
+    
+    if (!error && data) {
+      setActivities(data);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,6 +112,7 @@ export const AddActivity = ({ onActivityAdded, onClose }: AddActivityProps) => {
       setTimeUnit("hours");
       onClose();
       onActivityAdded();
+      loadActivities();
     } catch (error: any) {
       toast({
         title: "Error",
@@ -97,8 +124,81 @@ export const AddActivity = ({ onActivityAdded, onClose }: AddActivityProps) => {
     }
   };
 
+  const handleToggleActive = async (activity: Activity) => {
+    try {
+      const { error } = await supabase
+        .from("activities")
+        .update({ is_active: !activity.is_active })
+        .eq("id", activity.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Éxito",
+        description: `Actividad "${activity.name}" ${!activity.is_active ? 'activada' : 'desactivada'}`,
+      });
+
+      loadActivities();
+      onActivityAdded();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo actualizar la actividad",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleStartEdit = (activity: Activity) => {
+    setEditingId(activity.id);
+    setEditingName(activity.name);
+  };
+
+  const handleSaveEdit = async (activityId: string) => {
+    if (!editingName.trim()) {
+      toast({
+        title: "Error",
+        description: "El nombre no puede estar vacío",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from("activities")
+        .update({ name: editingName.trim() })
+        .eq("id", activityId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Éxito",
+        description: "Nombre actualizado correctamente",
+      });
+
+      setEditingId(null);
+      setEditingName("");
+      loadActivities();
+      onActivityAdded();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo actualizar el nombre",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setEditingName("");
+  };
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <div className="space-y-6">
+      {/* Formulario de nueva actividad */}
+      <form onSubmit={handleSubmit} className="space-y-4">
       <div>
         <label className="text-sm font-medium mb-1 block">Nombre de la actividad</label>
         <Input
@@ -173,5 +273,75 @@ export const AddActivity = ({ onActivityAdded, onClose }: AddActivityProps) => {
         </Button>
       </div>
     </form>
+
+    {/* Lista de actividades existentes */}
+    <div className="border-t pt-4">
+      <h3 className="text-lg font-semibold mb-3">Actividades Existentes</h3>
+      <div className="space-y-2 max-h-[400px] overflow-y-auto">
+        {activities.map((activity) => (
+          <div
+            key={activity.id}
+            className="flex items-center gap-2 p-2 border rounded-md hover:bg-muted/50 transition-colors"
+          >
+            {editingId === activity.id ? (
+              <>
+                <Input
+                  value={editingName}
+                  onChange={(e) => setEditingName(e.target.value)}
+                  className="flex-1"
+                  autoFocus
+                />
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => handleSaveEdit(activity.id)}
+                  className="h-8 w-8"
+                >
+                  <Check className="h-4 w-4 text-success" />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={handleCancelEdit}
+                  className="h-8 w-8"
+                >
+                  <X className="h-4 w-4 text-destructive" />
+                </Button>
+              </>
+            ) : (
+              <>
+                <span className="flex-1 text-sm font-medium">{activity.name}</span>
+                <span className="text-xs text-muted-foreground px-2 py-1 bg-muted rounded">
+                  {activity.activity_type === "time" ? "Tiempo" : "Veces"}
+                </span>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => handleStartEdit(activity)}
+                  className="h-8 w-8"
+                  title="Editar nombre"
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={() => handleToggleActive(activity)}
+                  className="h-8 w-8"
+                  title={activity.is_active ? "Desactivar" : "Activar"}
+                >
+                  {activity.is_active ? (
+                    <Eye className="h-4 w-4 text-success" />
+                  ) : (
+                    <EyeOff className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </Button>
+              </>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
   );
 };

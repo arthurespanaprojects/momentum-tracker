@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, Play, X, GripVertical } from "lucide-react";
 import { AddActivity } from "@/components/AddActivity";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { addDays, format, isSameDay } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -44,7 +44,8 @@ interface SummaryTableProps {
   onUpdateEntry: (activityId: string, date: string, minutes: number) => void;
   onStartTimer: (activityId: string, activityName: string) => void;
   onActivityAdded: () => void;
-  onReorderActivities: (activityId: string, direction: 'up' | 'down') => void;
+  onReorderActivities: (fromActivityId: string, toActivityId: string) => void;
+  onMoveToEnd: (activityId: string) => void;
 }
 
 export function SummaryTable({
@@ -58,6 +59,7 @@ export function SummaryTable({
   onStartTimer,
   onActivityAdded,
   onReorderActivities,
+  onMoveToEnd,
 }: SummaryTableProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
@@ -75,13 +77,67 @@ export function SummaryTable({
   const [goals, setGoals] = useState<{[activityId: string]: Array<{text: string, completed: boolean}>}>({});
   const [draggedActivity, setDraggedActivity] = useState<string | null>(null);
   const [dragOverActivity, setDragOverActivity] = useState<string | null>(null);
+  const [celebratingActivity, setCelebratingActivity] = useState<string | null>(null);
+  const [previousPercentages, setPreviousPercentages] = useState<{[activityId: string]: number}>({});
+  const rowRefs = useRef<{[key: string]: HTMLTableRowElement | null}>({});
+  const [celebrationPosition, setCelebrationPosition] = useState<{top: number, height: number} | null>(null);
+  const [isDraggingFromHandle, setIsDraggingFromHandle] = useState(false);
 
   // Limpiar valores locales cuando cambia la semana
   useEffect(() => {
     setLocalValues({});
   }, [weekStart]);
 
+  // Detectar cuando una actividad alcanza el 100%
+  useEffect(() => {
+    activities.forEach((activity, index) => {
+      const data = summary[activity.id];
+      if (!data || data.targetValue === 0) return;
+
+      const activityType = data.activity_type || activity.activity_type || "time";
+      const isTime = activityType === "time";
+      const realizedInSameUnit = isTime ? data.realizedValue / 60 : data.realizedValue;
+      const percentage = Math.min((realizedInSameUnit / data.targetValue) * 100, 100);
+      const previousPercentage = previousPercentages[activity.id] || 0;
+
+      // Si alcanzó el 100% y antes no lo había alcanzado
+      if (percentage >= 100 && previousPercentage < 100 && index !== activities.length - 1) {
+        setCelebratingActivity(activity.id);
+        
+        // Obtener posición de la fila
+        const row = rowRefs.current[activity.id];
+        if (row) {
+          const rect = row.getBoundingClientRect();
+          const container = row.closest('.overflow-x-auto');
+          const containerRect = container?.getBoundingClientRect();
+          if (containerRect) {
+            setCelebrationPosition({
+              top: rect.top - containerRect.top,
+              height: rect.height
+            });
+          }
+        }
+        
+        // Mostrar animación por 2 segundos, luego mover al final
+        setTimeout(() => {
+          setCelebratingActivity(null);
+          setCelebrationPosition(null);
+          onMoveToEnd(activity.id);
+        }, 2000);
+      }
+
+      // Actualizar el porcentaje anterior
+      if (percentage !== previousPercentage) {
+        setPreviousPercentages(prev => ({ ...prev, [activity.id]: percentage }));
+      }
+    });
+  }, [summary, activities, previousPercentages, onMoveToEnd]);
+
   const handleDragStart = (e: React.DragEvent, activityId: string) => {
+    if (!isDraggingFromHandle) {
+      e.preventDefault();
+      return;
+    }
     setDraggedActivity(activityId);
     e.dataTransfer.effectAllowed = 'move';
   };
@@ -96,30 +152,15 @@ export function SummaryTable({
 
   const handleDrop = (e: React.DragEvent, targetActivityId: string) => {
     e.preventDefault();
+    
     if (!draggedActivity || draggedActivity === targetActivityId) {
       setDraggedActivity(null);
       setDragOverActivity(null);
       return;
     }
 
-    const draggedIndex = activities.findIndex(a => a.id === draggedActivity);
-    const targetIndex = activities.findIndex(a => a.id === targetActivityId);
-
-    if (draggedIndex === -1 || targetIndex === -1) {
-      setDraggedActivity(null);
-      setDragOverActivity(null);
-      return;
-    }
-
-    // Determinar dirección del movimiento
-    const direction = draggedIndex < targetIndex ? 'down' : 'up';
-    
-    // Mover la actividad
-    let currentIndex = draggedIndex;
-    while (currentIndex !== targetIndex) {
-      onReorderActivities(draggedActivity, direction);
-      currentIndex = direction === 'down' ? currentIndex + 1 : currentIndex - 1;
-    }
+    // Llamar a onReorderActivities con los IDs de origen y destino
+    onReorderActivities(draggedActivity, targetActivityId);
 
     setDraggedActivity(null);
     setDragOverActivity(null);
@@ -128,6 +169,7 @@ export function SummaryTable({
   const handleDragEnd = () => {
     setDraggedActivity(null);
     setDragOverActivity(null);
+    setIsDraggingFromHandle(false);
   };
 
   const getHeatLevel = (value: number, isTime: boolean): number => {
@@ -159,9 +201,9 @@ export function SummaryTable({
               <Plus className="h-5 w-5" />
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Agregar Nueva Actividad</DialogTitle>
+              <DialogTitle>Gestionar Actividades</DialogTitle>
             </DialogHeader>
             <AddActivity 
               onActivityAdded={onActivityAdded} 
@@ -170,7 +212,26 @@ export function SummaryTable({
           </DialogContent>
         </Dialog>
       </div>
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto relative">
+        {celebratingActivity && celebrationPosition && (
+          <div className="absolute inset-0 pointer-events-none z-50 overflow-hidden">
+            <div 
+              className="absolute left-0 right-0"
+              style={{ 
+                top: `${celebrationPosition.top}px`,
+                height: `${celebrationPosition.height}px`
+              }}
+            >
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-success to-transparent animate-pulse" />
+              <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-success to-transparent animate-pulse" />
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-success/10 to-transparent animate-pulse" style={{ animationDuration: '1s' }} />
+              {/* Sparkles */}
+              <div className="absolute top-1/2 left-1/4 w-2 h-2 bg-success rounded-full animate-ping" style={{ animationDelay: '0s' }} />
+              <div className="absolute top-1/3 left-1/2 w-2 h-2 bg-success rounded-full animate-ping" style={{ animationDelay: '0.3s' }} />
+              <div className="absolute top-2/3 left-3/4 w-2 h-2 bg-success rounded-full animate-ping" style={{ animationDelay: '0.6s' }} />
+            </div>
+          </div>
+        )}
         <table className="w-full border-collapse text-base">
           <thead>
             <tr className="bg-muted">
@@ -226,11 +287,13 @@ export function SummaryTable({
 
               return (
                 <tr 
-                  key={activity.id} 
+                  key={activity.id}
+                  ref={(el) => rowRefs.current[activity.id] = el}
                   className={cn(
                     "bg-card transition-all",
                     draggedActivity === activity.id && "opacity-50",
-                    dragOverActivity === activity.id && "border-t-2 border-t-primary"
+                    dragOverActivity === activity.id && "border-t-2 border-t-primary",
+                    celebratingActivity === activity.id && "bg-gradient-to-r from-success/20 via-success/30 to-success/20"
                   )}
                   draggable
                   onDragStart={(e) => handleDragStart(e, activity.id)}
@@ -244,6 +307,8 @@ export function SummaryTable({
                         <div 
                           className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground transition-colors"
                           title="Arrastrar para reordenar"
+                          onMouseDown={() => setIsDraggingFromHandle(true)}
+                          onMouseUp={() => setIsDraggingFromHandle(false)}
                         >
                           <GripVertical className="h-4 w-4" />
                         </div>
@@ -292,56 +357,10 @@ export function SummaryTable({
                           "p-2 border border-border text-center cursor-text",
                           `bg-heat-${heatLevel}`
                         )}
-                        onClick={(e) => {
-                          const editable = e.currentTarget.querySelector('[contenteditable]');
-                          if (editable && e.target !== editable) {
-                            (editable as HTMLElement).focus();
-                            const range = document.createRange();
-                            const sel = window.getSelection();
-                            range.selectNodeContents(editable);
-                            range.collapse(false);
-                            sel?.removeAllRanges();
-                            sel?.addRange(range);
-                          }
-                        }}
                       >
                         <span
                           contentEditable
                           suppressContentEditableWarning
-                          onMouseDown={(e) => {
-                            const target = e.currentTarget;
-                            setTimeout(() => {
-                              target.focus();
-                              const range = document.createRange();
-                              const sel = window.getSelection();
-                              if (target.childNodes.length > 0) {
-                                const lastNode = target.childNodes[target.childNodes.length - 1];
-                                range.setStart(lastNode, lastNode.textContent?.length || 0);
-                                range.collapse(true);
-                              } else {
-                                range.selectNodeContents(target);
-                                range.collapse(false);
-                              }
-                              sel?.removeAllRanges();
-                              sel?.addRange(range);
-                            }, 0);
-                          }}
-                          onFocus={(e) => {
-                            setTimeout(() => {
-                              const range = document.createRange();
-                              const sel = window.getSelection();
-                              if (e.currentTarget.childNodes.length > 0) {
-                                const lastNode = e.currentTarget.childNodes[e.currentTarget.childNodes.length - 1];
-                                range.setStart(lastNode, lastNode.textContent?.length || 0);
-                                range.collapse(true);
-                              } else {
-                                range.selectNodeContents(e.currentTarget);
-                                range.collapse(false);
-                              }
-                              sel?.removeAllRanges();
-                              sel?.addRange(range);
-                            }, 10);
-                          }}
                           onInput={(e) => {
                             const val = e.currentTarget.textContent || "";
                             if (val === "" || /^\d*\.?\d*$/.test(val)) {
@@ -513,7 +532,7 @@ export function SummaryTable({
                       {(!goals[activity.id] || goals[activity.id].length < 2) && (
                         <input
                           type="text"
-                          placeholder="+ Nueva meta"
+                          placeholder="+Meta"
                           className="text-xs bg-transparent border-0 focus:outline-none placeholder:text-muted-foreground/50 p-0"
                           onKeyDown={(e) => {
                             if (e.key === 'Enter' && e.currentTarget.value.trim()) {
