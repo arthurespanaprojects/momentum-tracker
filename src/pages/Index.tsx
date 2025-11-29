@@ -5,6 +5,8 @@ import { WeekNavigator } from "@/components/WeekNavigator";
 import { SummaryTable } from "@/components/SummaryTable";
 import { ActivityTimer } from "@/components/ActivityTimer";
 import { GoogleCalendar } from "@/components/GoogleCalendar";
+import { TodayTasks } from "@/components/TodayTasks";
+import { GoogleAuthProvider } from "@/contexts/GoogleAuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -524,8 +526,9 @@ const Index = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background p-8">
-      <div className="max-w-[1600px] mx-auto">
+    <GoogleAuthProvider clientId={import.meta.env.VITE_GOOGLE_OAUTH_CLIENT_ID || ''}>
+      <div className="min-h-screen bg-background p-8">
+        <div className="max-w-[1600px] mx-auto">
         <div className="mb-8 relative">
           <div className="flex items-center gap-3 mb-2">
             <div className="h-10 w-1 bg-gradient-to-b from-primary to-primary/50 rounded-full"></div>
@@ -606,6 +609,26 @@ const Index = () => {
           onCancel={() => setTimerActivity(null)}
         />
 
+        {/* Tareas de Hoy y Mañana */}
+        <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+          <TodayTasks
+            calendarIds={[
+              import.meta.env.VITE_GOOGLE_CALENDAR_PRIMARY,
+              import.meta.env.VITE_GOOGLE_CALENDAR_SECONDARY
+            ].filter(Boolean)}
+            targetDate={new Date()}
+            title="Tareas de Hoy"
+          />
+          <TodayTasks
+            calendarIds={[
+              import.meta.env.VITE_GOOGLE_CALENDAR_PRIMARY,
+              import.meta.env.VITE_GOOGLE_CALENDAR_SECONDARY
+            ].filter(Boolean)}
+            targetDate={addDays(new Date(), 1)}
+            title="Tareas de Mañana"
+          />
+        </div>
+
         {/* Google Calendar */}
         <div className="mt-8">
           <div className="mb-4">
@@ -629,6 +652,7 @@ const Index = () => {
         </div>
       </div>
     </div>
+    </GoogleAuthProvider>
   );
 };
 

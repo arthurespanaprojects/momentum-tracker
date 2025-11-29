@@ -83,17 +83,47 @@
   cursor: not-allowed;
 }
 
+.google-calendar-container .fc-toolbar {
+  position: relative;
+  justify-content: center;
+}
+
 .google-calendar-container .fc-toolbar-title {
   color: hsl(var(--foreground));
   font-weight: 700;
   font-size: 1.5rem;
   text-align: center;
-  width: 100%;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
 }
 
 .google-calendar-container .fc-toolbar-chunk {
   display: flex;
   align-items: center;
+  gap: 0.5rem;
+}
+
+.google-calendar-container .fc-toolbar-chunk:first-child {
+  margin-right: auto;
+}
+
+.google-calendar-container .fc-toolbar-chunk:last-child {
+  margin-left: auto;
+}
+
+/* Botón personalizado de autenticación */
+.google-calendar-container .fc-customAuthButton-button {
+  background: hsl(var(--secondary)) !important;
+  border-color: hsl(var(--border)) !important;
+  color: hsl(var(--secondary-foreground)) !important;
+  font-size: 0.875rem;
+  padding: 0.375rem 0.75rem;
+}
+
+.google-calendar-container .fc-customAuthButton-button:hover {
+  background: hsl(var(--secondary) / 0.8) !important;
 }
 
 /* Celdas del calendario con mismo tamaño */

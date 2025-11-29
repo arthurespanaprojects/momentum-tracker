@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { useGoogleCalendar } from '@/hooks/useGoogleCalendar';
+import { useGoogleAuth } from '@/contexts/GoogleAuthContext';
 import { useToast } from '@/components/ui/use-toast';
 import './GoogleCalendar.css';
 
@@ -42,6 +43,7 @@ export function GoogleCalendar({ apiKey, calendarIds, clientId }: GoogleCalendar
   const calendarRef = useRef<FullCalendar>(null);
   const { toast } = useToast();
   const googleAuth = useGoogleCalendar(clientId);
+  const googleAuthContext = useGoogleAuth();
   
   const [error, setError] = useState<string | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<EventInfo | null>(null);
@@ -49,7 +51,11 @@ export function GoogleCalendar({ apiKey, calendarIds, clientId }: GoogleCalendar
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [shouldRefetch, setShouldRefetch] = useState(false);
+  const eventsCache = useRef<any[]>([]);
   
   const [formData, setFormData] = useState<EventFormData>({
     title: '',
@@ -63,33 +69,53 @@ export function GoogleCalendar({ apiKey, calendarIds, clientId }: GoogleCalendar
     startDate: ''
   });
 
+  // Memorizar eventSources para evitar recreación en cada render
+  const eventSources = useMemo(() => {
+    return calendarIds.map(id => ({
+      googleCalendarId: id,
+    }));
+  }, [calendarIds]);
+
   useEffect(() => {
-    console.log('🔑 Google Calendar API Key:', apiKey ? `${apiKey.substring(0, 20)}...` : 'NO CONFIGURADA');
-    console.log('📅 Calendarios configurados:', calendarIds);
-    
     if (!apiKey || apiKey === 'PEGA_AQUI_TU_API_KEY') {
-      setError('⚠️ Falta configurar VITE_GOOGLE_CALENDAR_API_KEY en el archivo .env');
+      setError('Falta configurar VITE_GOOGLE_CALENDAR_API_KEY en el archivo .env');
     } else if (calendarIds.length === 0) {
-      setError('⚠️ No hay calendarios configurados');
+      setError('No hay calendarios configurados');
     } else {
       setError(null);
     }
   }, [apiKey, calendarIds]);
 
+  // Escuchar cambios del contexto para refrescar el calendario
+  useEffect(() => {
+    if (googleAuthContext.refreshTrigger > 0 && calendarRef.current && !isRefreshing) {
+      setTimeout(() => {
+        if (calendarRef.current) {
+          calendarRef.current.getApi().refetchEvents();
+        }
+      }, 500);
+    }
+  }, [googleAuthContext.refreshTrigger]);
+
+  // Polling automático para detectar cambios externos (cada 30 segundos)
+  useEffect(() => {
+    if (!googleAuth.isSignedIn) return;
+
+    const intervalId = setInterval(() => {
+      if (calendarRef.current && !isRefreshing && !isSubmitting) {
+        calendarRef.current.getApi().refetchEvents();
+      }
+    }, 30000); // 30 segundos
+
+    return () => clearInterval(intervalId);
+  }, [googleAuth.isSignedIn, isRefreshing, isSubmitting]);
+
   const handleEventClick = (info: any) => {
     const event = info.event;
     const isTask = event.extendedProps.eventType === 'task' || !event.start;
     
-    // El ID de Google Calendar puede estar en diferentes lugares
     const eventId = event.id || event.extendedProps?.id || event._def?.publicId;
     const calendarId = event.source?.googleCalendarId || calendarIds[0];
-    
-    console.log('🔍 Evento seleccionado:', {
-      id: eventId,
-      calendarId: calendarId,
-      title: event.title,
-      allProps: event.extendedProps
-    });
     
     setSelectedEvent({
       id: eventId,
@@ -106,6 +132,15 @@ export function GoogleCalendar({ apiKey, calendarIds, clientId }: GoogleCalendar
   };
 
   const handleDateClick = (info: any) => {
+    if (!googleAuth.isSignedIn) {
+      toast({
+        title: 'No autenticado',
+        description: 'Por favor conecta tu cuenta de Google primero',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
     const date = info.date;
     setSelectedDate(date);
     
@@ -157,16 +192,26 @@ export function GoogleCalendar({ apiKey, calendarIds, clientId }: GoogleCalendar
       await googleAuth.createEvent(calendarId, event);
       
       toast({
-        title: '✓ Tarea creada',
+        title: 'Tarea creada',
         description: 'La tarea se agregó correctamente'
       });
       
       setShowAddDialog(false);
       
-      // Refrescar calendario
-      if (calendarRef.current) {
-        calendarRef.current.getApi().refetchEvents();
-      }
+      // Refrescar calendario de forma suave
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          if (calendarRef.current && !isRefreshing) {
+            setIsRefreshing(true);
+            setShouldRefetch(true);
+            calendarRef.current.getApi().refetchEvents();
+            setTimeout(() => {
+              setIsRefreshing(false);
+              setShouldRefetch(false);
+            }, 1000);
+          }
+        }, 800);
+      });
     } catch (error) {
       console.error('Error creando evento:', error);
       toast({
@@ -220,12 +265,6 @@ export function GoogleCalendar({ apiKey, calendarIds, clientId }: GoogleCalendar
 
     setIsSubmitting(true);
     try {
-      console.log('📝 Actualizando evento:', {
-        calendarId: selectedEvent.calendarId,
-        eventId: selectedEvent.id,
-        newData: editFormData
-      });
-
       const updatedEvent = {
         summary: editFormData.title,
         description: editFormData.description,
@@ -240,17 +279,27 @@ export function GoogleCalendar({ apiKey, calendarIds, clientId }: GoogleCalendar
       await googleAuth.updateEvent(selectedEvent.calendarId, selectedEvent.id, updatedEvent as any);
       
       toast({
-        title: '✓ Tarea actualizada',
+        title: 'Tarea actualizada',
         description: 'Los cambios se guardaron correctamente'
       });
       
       setShowEditDialog(false);
       setSelectedEvent(null);
       
-      // Refrescar calendario
-      if (calendarRef.current) {
-        calendarRef.current.getApi().refetchEvents();
-      }
+      // Refrescar calendario de forma suave
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          if (calendarRef.current && !isRefreshing) {
+            setIsRefreshing(true);
+            setShouldRefetch(true);
+            calendarRef.current.getApi().refetchEvents();
+            setTimeout(() => {
+              setIsRefreshing(false);
+              setShouldRefetch(false);
+            }, 1000);
+          }
+        }, 800);
+      });
     } catch (error) {
       console.error('Error actualizando evento:', error);
       toast({
@@ -263,13 +312,13 @@ export function GoogleCalendar({ apiKey, calendarIds, clientId }: GoogleCalendar
     }
   };
 
+  const handleDeleteClick = () => {
+    setShowEventDialog(false);
+    setShowDeleteDialog(true);
+  };
+
   const handleDeleteEvent = async () => {
     if (!googleAuth.isSignedIn || !selectedEvent?.id || !selectedEvent?.calendarId) {
-      console.error('❌ Faltan datos para eliminar:', {
-        isSignedIn: googleAuth.isSignedIn,
-        eventId: selectedEvent?.id,
-        calendarId: selectedEvent?.calendarId
-      });
       toast({
         title: 'Error',
         description: 'No se puede eliminar el evento',
@@ -278,31 +327,32 @@ export function GoogleCalendar({ apiKey, calendarIds, clientId }: GoogleCalendar
       return;
     }
 
-    if (!confirm('¿Estás seguro de que quieres eliminar esta tarea?')) {
-      return;
-    }
-
     setIsSubmitting(true);
     try {
-      console.log('🗑️ Eliminando evento:', {
-        calendarId: selectedEvent.calendarId,
-        eventId: selectedEvent.id
-      });
-
       await googleAuth.deleteEvent(selectedEvent.calendarId, selectedEvent.id);
       
       toast({
-        title: '✓ Tarea eliminada',
+        title: 'Tarea eliminada',
         description: 'La tarea se eliminó correctamente'
       });
       
-      setShowEventDialog(false);
+      setShowDeleteDialog(false);
       setSelectedEvent(null);
       
-      // Refrescar calendario
-      if (calendarRef.current) {
-        calendarRef.current.getApi().refetchEvents();
-      }
+      // Refrescar calendario de forma suave
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          if (calendarRef.current && !isRefreshing) {
+            setIsRefreshing(true);
+            setShouldRefetch(true);
+            calendarRef.current.getApi().refetchEvents();
+            setTimeout(() => {
+              setIsRefreshing(false);
+              setShouldRefetch(false);
+            }, 1000);
+          }
+        }, 800);
+      });
     } catch (error) {
       console.error('Error eliminando evento:', error);
       toast({
@@ -325,16 +375,26 @@ export function GoogleCalendar({ apiKey, calendarIds, clientId }: GoogleCalendar
       } as any);
       
       toast({
-        title: '✓ Tarea completada',
+        title: 'Tarea completada',
         description: 'La tarea ha sido marcada como completada'
       });
       
       setShowEventDialog(false);
       
-      // Refrescar calendario
-      if (calendarRef.current) {
-        calendarRef.current.getApi().refetchEvents();
-      }
+      // Refrescar calendario de forma suave
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          if (calendarRef.current && !isRefreshing) {
+            setIsRefreshing(true);
+            setShouldRefetch(true);
+            calendarRef.current.getApi().refetchEvents();
+            setTimeout(() => {
+              setIsRefreshing(false);
+              setShouldRefetch(false);
+            }, 1000);
+          }
+        }, 800);
+      });
     } catch (error) {
       console.error('Error completando tarea:', error);
       toast({
@@ -352,7 +412,7 @@ export function GoogleCalendar({ apiKey, calendarIds, clientId }: GoogleCalendar
       <div className="p-8 text-center">
         <div className="text-destructive text-lg font-semibold mb-2">{error}</div>
         <div className="text-muted-foreground text-sm">
-          Verifica tu configuración y reinicia el servidor con: npm run dev
+          Verifica tu configuración y reinicia el servidor
         </div>
       </div>
     );
@@ -360,27 +420,6 @@ export function GoogleCalendar({ apiKey, calendarIds, clientId }: GoogleCalendar
 
   return (
     <>
-      <div className="flex items-center justify-between mb-4">
-        <div className="text-sm text-muted-foreground">
-          {googleAuth.isSignedIn ? (
-            <span className="flex items-center gap-2">
-              <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-              Conectado: {googleAuth.userEmail}
-            </span>
-          ) : (
-            <span className="text-amber-500">Sin conectar - Solo lectura</span>
-          )}
-        </div>
-        {googleAuth.isInitialized && (
-          <Button
-            variant={googleAuth.isSignedIn ? "outline" : "default"}
-            size="sm"
-            onClick={googleAuth.isSignedIn ? googleAuth.signOut : googleAuth.signIn}
-          >
-            {googleAuth.isSignedIn ? 'Cerrar sesión' : 'Conectar Google Calendar'}
-          </Button>
-        )}
-      </div>
       <div className="google-calendar-container">
         <FullCalendar
           ref={calendarRef}
@@ -389,12 +428,23 @@ export function GoogleCalendar({ apiKey, calendarIds, clientId }: GoogleCalendar
           headerToolbar={{
             left: 'prev,next today',
             center: 'title',
-            right: ''
+            right: 'customAuthButton'
+          }}
+          customButtons={{
+            customAuthButton: {
+              text: !googleAuth.isInitialized ? 'Cargando...' : (googleAuth.isSignedIn ? 'Cerrar sesión' : 'Conectar'),
+              click: () => {
+                if (!googleAuth.isInitialized) return;
+                if (googleAuth.isSignedIn) {
+                  googleAuth.signOut();
+                } else {
+                  googleAuth.signIn();
+                }
+              }
+            }
           }}
           googleCalendarApiKey={apiKey}
-          eventSources={calendarIds.map(id => ({
-            googleCalendarId: id,
-          }))}
+          eventSources={eventSources}
           eventSourceFailure={(error) => {
             console.warn('⚠️ Error cargando un calendario:', error);
           }}
@@ -435,11 +485,21 @@ export function GoogleCalendar({ apiKey, calendarIds, clientId }: GoogleCalendar
             }
             return classes;
           }}
-          loading={(isLoading) => {
-            if (isLoading) {
-              console.log('Cargando eventos del calendario...');
+          eventDataTransform={(event) => {
+            // Solo actualizar cache durante refetch explícito
+            if (shouldRefetch) {
+              const idx = eventsCache.current.findIndex(e => e.id === event.id);
+              if (idx >= 0) {
+                eventsCache.current[idx] = event;
+              } else {
+                eventsCache.current.push(event);
+              }
             }
+            return event;
           }}
+          lazyFetching={true}
+          refetchResourcesOnNavigate={false}
+          progressiveEventRendering={true}
         />
       </div>
 
@@ -447,18 +507,17 @@ export function GoogleCalendar({ apiKey, calendarIds, clientId }: GoogleCalendar
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle className="text-2xl flex items-center gap-2">
-              {selectedEvent?.isTask && (selectedEvent?.completed ? '✅' : '☐')}
               {selectedEvent?.title}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 mt-4">
                 {selectedEvent?.isTask && (
                   <div className="bg-muted p-3 rounded-lg">
-                    <div className="font-semibold text-foreground mb-2">📋 Tarea</div>
+                    <div className="font-semibold text-foreground mb-2">Tarea</div>
                     <div className="text-sm">
                       Estado: {selectedEvent.completed ? 
-                        <span className="text-emerald-500 font-semibold">✓ Completada</span> : 
-                        <span className="text-amber-500 font-semibold">⏳ Pendiente</span>
+                        <span className="text-emerald-500 font-semibold">Completada</span> : 
+                        <span className="text-amber-500 font-semibold">Pendiente</span>
                       }
                     </div>
                   </div>
@@ -466,7 +525,7 @@ export function GoogleCalendar({ apiKey, calendarIds, clientId }: GoogleCalendar
                 
                 {!selectedEvent?.isTask && selectedEvent?.start && (
                   <div>
-                    <div className="font-semibold text-foreground">📅 Fecha y hora</div>
+                    <div className="font-semibold text-foreground">Fecha y hora</div>
                     <div className="text-base mt-1">
                       {new Date(selectedEvent.start).toLocaleString('es-BO', {
                         weekday: 'long',
@@ -488,14 +547,14 @@ export function GoogleCalendar({ apiKey, calendarIds, clientId }: GoogleCalendar
                 
                 {selectedEvent?.location && (
                   <div>
-                    <div className="font-semibold text-foreground">📍 Ubicación</div>
+                    <div className="font-semibold text-foreground">Ubicación</div>
                     <div className="text-base mt-1">{selectedEvent.location}</div>
                   </div>
                 )}
                 
                 {selectedEvent?.description && selectedEvent.description !== 'Sin descripción' && (
                   <div>
-                    <div className="font-semibold text-foreground">📝 Descripción</div>
+                    <div className="font-semibold text-foreground">Descripción</div>
                     <div className="text-base mt-1 whitespace-pre-wrap">{selectedEvent.description}</div>
                   </div>
                 )}
@@ -506,8 +565,7 @@ export function GoogleCalendar({ apiKey, calendarIds, clientId }: GoogleCalendar
                 <>
                   <Button 
                     variant="destructive"
-                    onClick={handleDeleteEvent}
-                    disabled={isSubmitting}
+                    onClick={handleDeleteClick}
                   >
                     Eliminar
                   </Button>
@@ -541,10 +599,10 @@ export function GoogleCalendar({ apiKey, calendarIds, clientId }: GoogleCalendar
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle className="text-xl">📋 Añadir tarea</DialogTitle>
+            <DialogTitle className="text-xl">Añadir tarea</DialogTitle>
           </DialogHeader>
           <div className="text-sm mb-4 text-muted-foreground">
-            📅 {selectedDate?.toLocaleDateString('es-BO', {
+            {selectedDate?.toLocaleDateString('es-BO', {
               weekday: 'long',
               year: 'numeric',
               month: 'long',
@@ -553,51 +611,38 @@ export function GoogleCalendar({ apiKey, calendarIds, clientId }: GoogleCalendar
             })}
           </div>
           
-          {!googleAuth.isSignedIn ? (
-            <div className="bg-muted p-4 rounded-lg space-y-3">
-              <p className="text-sm text-muted-foreground">
-                Para crear eventos directamente desde aquí, necesitas conectar tu cuenta de Google.
-              </p>
-              <Button onClick={googleAuth.signIn} className="w-full">
-                Conectar Google Calendar
-              </Button>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="title">Título *</Label>
+              <Input
+                id="title"
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                placeholder="¿Qué hay que hacer?"
+                className="mt-1"
+              />
             </div>
-          ) : (
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="title">Título *</Label>
-                <Input
-                  id="title"
-                  value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  placeholder="¿Qué hay que hacer?"
-                  className="mt-1"
-                />
-              </div>
 
-              <div>
-                <Label htmlFor="description">Descripción</Label>
-                <Textarea
-                  id="description"
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="Detalles adicionales..."
-                  className="mt-1"
-                  rows={3}
-                />
-              </div>
+            <div>
+              <Label htmlFor="description">Descripción</Label>
+              <Textarea
+                id="description"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                placeholder="Detalles adicionales..."
+                className="mt-1"
+                rows={3}
+              />
             </div>
-          )}
+          </div>
           
           <div className="flex gap-2 justify-end mt-4">
             <Button variant="outline" onClick={() => setShowAddDialog(false)}>
               Cancelar
             </Button>
-            {googleAuth.isSignedIn && (
-              <Button onClick={handleCreateEvent} disabled={isSubmitting}>
-                {isSubmitting ? 'Creando...' : 'Crear'}
-              </Button>
-            )}
+            <Button onClick={handleCreateEvent} disabled={isSubmitting}>
+              {isSubmitting ? 'Creando...' : 'Crear'}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -605,7 +650,7 @@ export function GoogleCalendar({ apiKey, calendarIds, clientId }: GoogleCalendar
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle className="text-xl">✏️ Editar tarea</DialogTitle>
+            <DialogTitle className="text-xl">Editar tarea</DialogTitle>
           </DialogHeader>
           
           <div className="space-y-4 mt-4">
@@ -650,6 +695,36 @@ export function GoogleCalendar({ apiKey, calendarIds, clientId }: GoogleCalendar
             </Button>
             <Button onClick={handleUpdateEvent} disabled={isSubmitting}>
               {isSubmitting ? 'Guardando...' : 'Guardar cambios'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de confirmación de eliminación */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>¿Eliminar tarea?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground mt-4">
+            Esta acción no se puede deshacer. La tarea se eliminará permanentemente.
+          </p>
+          <div className="flex gap-2 justify-end mt-6">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowDeleteDialog(false);
+                setShowEventDialog(true);
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button 
+              variant="destructive"
+              onClick={handleDeleteEvent}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? 'Eliminando...' : 'Eliminar'}
             </Button>
           </div>
         </DialogContent>

@@ -29,6 +29,9 @@ export interface GoogleTask {
 }
 
 const SCOPES = 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/tasks';
+const STORAGE_KEY = 'google_oauth_token';
+const STORAGE_EMAIL_KEY = 'google_user_email';
+const TOKEN_EXPIRY_KEY = 'google_token_expiry';
 
 export const useGoogleCalendar = (clientId: string) => {
   const [isSignedIn, setIsSignedIn] = useState(false);
@@ -38,6 +41,52 @@ export const useGoogleCalendar = (clientId: string) => {
   const tokenClientRef = useRef<any>(null);
   const gapiInited = useRef(false);
   const gisInited = useRef(false);
+
+  // Función para guardar token de forma segura
+  const saveToken = (token: string, email: string) => {
+    try {
+      localStorage.setItem(STORAGE_KEY, token);
+      localStorage.setItem(STORAGE_EMAIL_KEY, email);
+      // Token expira en 1 hora (3600 segundos)
+      const expiryTime = Date.now() + (3600 * 1000);
+      localStorage.setItem(TOKEN_EXPIRY_KEY, expiryTime.toString());
+    } catch (error) {
+      console.error('Error guardando token:', error);
+    }
+  };
+
+  // Función para recuperar token si aún es válido
+  const loadToken = () => {
+    try {
+      const token = localStorage.getItem(STORAGE_KEY);
+      const email = localStorage.getItem(STORAGE_EMAIL_KEY);
+      const expiry = localStorage.getItem(TOKEN_EXPIRY_KEY);
+      
+      if (token && email && expiry) {
+        const expiryTime = parseInt(expiry);
+        if (Date.now() < expiryTime) {
+          return { token, email };
+        } else {
+          // Token expirado, limpiar
+          clearToken();
+        }
+      }
+    } catch (error) {
+      console.error('Error cargando token:', error);
+    }
+    return null;
+  };
+
+  // Función para limpiar token
+  const clearToken = () => {
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(STORAGE_EMAIL_KEY);
+      localStorage.removeItem(TOKEN_EXPIRY_KEY);
+    } catch (error) {
+      console.error('Error limpiando token:', error);
+    }
+  };
 
   // Cargar e inicializar GAPI
   useEffect(() => {
@@ -92,7 +141,9 @@ export const useGoogleCalendar = (clientId: string) => {
             });
             const userInfo = await userInfoResponse.json();
             setUserEmail(userInfo.email);
-            console.log('✅ Conectado como:', userInfo.email);
+            
+            // Guardar token para persistencia
+            saveToken(response.access_token, userInfo.email);
           } catch (error) {
             console.error('Error obteniendo información del usuario:', error);
           }
@@ -106,8 +157,20 @@ export const useGoogleCalendar = (clientId: string) => {
     // Habilitar botones solo cuando ambas APIs estén listas
     const maybeEnableButtons = () => {
       if (gapiInited.current && gisInited.current) {
-        console.log('✅ Google OAuth (GIS) inicializado correctamente');
         setIsInitialized(true);
+        
+        // Intentar restaurar sesión guardada
+        const savedAuth = loadToken();
+        if (savedAuth) {
+          setAccessToken(savedAuth.token);
+          setUserEmail(savedAuth.email);
+          setIsSignedIn(true);
+          
+          // Configurar token en GAPI
+          if (window.gapi?.client) {
+            window.gapi.client.setToken({ access_token: savedAuth.token });
+          }
+        }
       }
     };
 
@@ -171,7 +234,14 @@ export const useGoogleCalendar = (clientId: string) => {
         setAccessToken(null);
         setUserEmail(null);
         window.gapi.client.setToken(null);
+        clearToken();
       });
+    } else {
+      // Si no hay token activo, solo limpiar estado local
+      setIsSignedIn(false);
+      setAccessToken(null);
+      setUserEmail(null);
+      clearToken();
     }
   }, [accessToken]);
 

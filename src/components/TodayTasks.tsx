@@ -1,0 +1,429 @@
+import { useEffect, useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useGoogleAuth } from '@/contexts/GoogleAuthContext';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
+import { Plus, Pencil, Trash2 } from 'lucide-react';
+
+interface Task {
+  id: string;
+  title: string;
+  description?: string;
+  completed: boolean;
+  calendarId: string;
+}
+
+interface TodayTasksProps {
+  calendarIds: string[];
+  targetDate: Date;
+  title: string;
+}
+
+export function TodayTasks({ calendarIds, targetDate, title }: TodayTasksProps) {
+  const googleAuth = useGoogleAuth();
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [formData, setFormData] = useState({ title: '', description: '' });
+
+  const loadTasks = async () => {
+    if (!googleAuth.isSignedIn || !window.gapi?.client?.calendar) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const dateStr = format(targetDate, 'yyyy-MM-dd');
+      const allTasks: Task[] = [];
+
+      for (const calendarId of calendarIds) {
+        try {
+          const response = await window.gapi.client.calendar.events.list({
+            calendarId: calendarId,
+            timeMin: `${dateStr}T00:00:00-04:00`,
+            timeMax: `${dateStr}T23:59:59-04:00`,
+            singleEvents: true,
+            orderBy: 'startTime',
+          });
+
+          const events = response.result.items || [];
+          
+          // Filtrar solo eventos que son de un día completo (tareas)
+          const dayTasks = events
+            .filter((event: any) => event.start?.date) // Solo eventos con 'date' (no 'dateTime')
+            .map((event: any) => ({
+              id: event.id,
+              title: event.summary || 'Sin título',
+              description: event.description,
+              completed: event.status === 'completed',
+              calendarId: calendarId,
+            }));
+
+          allTasks.push(...dayTasks);
+        } catch (error) {
+          console.error(`Error loading tasks from calendar ${calendarId}:`, error);
+        }
+      }
+
+      setTasks(allTasks);
+    } catch (error) {
+      console.error('Error loading tasks:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (googleAuth.isSignedIn) {
+      loadTasks();
+    } else {
+      setLoading(false);
+    }
+  }, [googleAuth.isSignedIn, targetDate]);
+
+  // Polling automático para detectar cambios externos (cada 30 segundos)
+  useEffect(() => {
+    if (!googleAuth.isSignedIn) return;
+
+    const intervalId = setInterval(() => {
+      loadTasks();
+    }, 30000); // 30 segundos
+
+    return () => clearInterval(intervalId);
+  }, [googleAuth.isSignedIn, targetDate]);
+
+  // Escuchar cambios del contexto para refrescar las tareas
+  useEffect(() => {
+    if (googleAuth.refreshTrigger > 0 && googleAuth.isSignedIn) {
+      setTimeout(() => {
+        loadTasks();
+      }, 600);
+    }
+  }, [googleAuth.refreshTrigger]);
+
+  const handleToggleTask = async (task: Task) => {
+    if (!googleAuth.isSignedIn) return;
+
+    try {
+      const newStatus = task.completed ? 'confirmed' : 'completed';
+      
+      await googleAuth.updateEvent(task.calendarId, task.id, {
+        status: newStatus,
+      } as any);
+
+      setTasks(prev =>
+        prev.map(t =>
+          t.id === task.id ? { ...t, completed: !t.completed } : t
+        )
+      );
+      googleAuth.triggerRefresh();
+    } catch (error) {
+      console.error('Error updating task:', error);
+    }
+  };
+
+  const handleAddTask = async () => {
+    if (!googleAuth.isSignedIn || !formData.title.trim()) return;
+
+    try {
+      const dateStr = format(targetDate, 'yyyy-MM-dd');
+      const calendarId = calendarIds[0];
+
+      const event = {
+        summary: formData.title,
+        description: formData.description,
+        start: { date: dateStr },
+        end: { date: dateStr }
+      };
+
+      const newEvent = await googleAuth.createEvent(calendarId, event);
+      
+      setTasks(prev => [...prev, {
+        id: newEvent.id,
+        title: newEvent.summary,
+        description: newEvent.description,
+        completed: false,
+        calendarId: calendarId
+      }]);
+
+      setFormData({ title: '', description: '' });
+      setShowAddDialog(false);
+      googleAuth.triggerRefresh();
+    } catch (error) {
+      console.error('Error creating task:', error);
+    }
+  };
+
+  const handleEditTask = async () => {
+    if (!googleAuth.isSignedIn || !editingTask || !formData.title.trim()) return;
+
+    try {
+      const dateStr = format(targetDate, 'yyyy-MM-dd');
+
+      const updatedEvent = {
+        summary: formData.title,
+        description: formData.description,
+        start: { date: dateStr },
+        end: { date: dateStr }
+      };
+
+      await googleAuth.updateEvent(editingTask.calendarId, editingTask.id, updatedEvent as any);
+      
+      setTasks(prev =>
+        prev.map(t =>
+          t.id === editingTask.id
+            ? { ...t, title: formData.title, description: formData.description }
+            : t
+        )
+      );
+
+      setFormData({ title: '', description: '' });
+      setEditingTask(null);
+      setShowEditDialog(false);
+      googleAuth.triggerRefresh();
+    } catch (error) {
+      console.error('Error updating task:', error);
+    }
+  };
+
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
+
+  const handleDeleteTask = async () => {
+    if (!googleAuth.isSignedIn || !taskToDelete) return;
+
+    try {
+      await googleAuth.deleteEvent(taskToDelete.calendarId, taskToDelete.id);
+      setTasks(prev => prev.filter(t => t.id !== taskToDelete.id));
+      setShowDeleteDialog(false);
+      setTaskToDelete(null);
+      googleAuth.triggerRefresh();
+    } catch (error) {
+      console.error('Error deleting task:', error);
+    }
+  };
+
+  const openEditDialog = (task: Task) => {
+    setEditingTask(task);
+    setFormData({ title: task.title, description: task.description || '' });
+    setShowEditDialog(true);
+  };
+
+  if (!googleAuth.isSignedIn) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">{title}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            Conecta Google Calendar para ver tus tareas
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (loading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">{title}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">Cargando tareas...</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <>
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+          <div>
+            <CardTitle className="text-lg">
+              {title}
+            </CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">
+              {format(targetDate, "EEEE, d 'de' MMMM", { locale: es })}
+            </p>
+          </div>
+          {googleAuth.isSignedIn && (
+            <Button 
+              size="sm" 
+              onClick={() => {
+                setFormData({ title: '', description: '' });
+                setShowAddDialog(true);
+              }}
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              Añadir
+            </Button>
+          )}
+        </CardHeader>
+        <CardContent>
+          {tasks.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No hay tareas para este día</p>
+          ) : (
+            <div className="space-y-2">
+              {tasks.map((task) => (
+                <div
+                  key={task.id}
+                  className="flex items-start gap-2 p-2 rounded-md hover:bg-muted/50 transition-colors group"
+                >
+                  <Checkbox
+                    checked={task.completed}
+                    onCheckedChange={() => handleToggleTask(task)}
+                    className="mt-1"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p
+                      className={`text-sm font-medium ${
+                        task.completed
+                          ? 'line-through text-muted-foreground'
+                          : 'text-foreground'
+                      }`}
+                    >
+                      {task.title}
+                    </p>
+                    {task.description && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {task.description}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 w-7 p-0"
+                      onClick={() => openEditDialog(task)}
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 w-7 p-0 text-destructive"
+                      onClick={() => {
+                        setTaskToDelete(task);
+                        setShowDeleteDialog(true);
+                      }}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Dialog para añadir tarea */}
+      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Añadir tarea</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <div>
+              <Input
+                placeholder="Título de la tarea"
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+              />
+            </div>
+            <div>
+              <Textarea
+                placeholder="Descripción (opcional)"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                rows={3}
+              />
+            </div>
+          </div>
+          <div className="flex gap-2 justify-end mt-4">
+            <Button variant="outline" onClick={() => setShowAddDialog(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleAddTask}>
+              Crear
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog para editar tarea */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar tarea</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <div>
+              <Input
+                placeholder="Título de la tarea"
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+              />
+            </div>
+            <div>
+              <Textarea
+                placeholder="Descripción (opcional)"
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                rows={3}
+              />
+            </div>
+          </div>
+          <div className="flex gap-2 justify-end mt-4">
+            <Button variant="outline" onClick={() => setShowEditDialog(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleEditTask}>
+              Guardar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de confirmación de eliminación */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>¿Eliminar tarea?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground mt-4">
+            Esta acción no se puede deshacer. La tarea se eliminará permanentemente.
+          </p>
+          <div className="flex gap-2 justify-end mt-6">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowDeleteDialog(false);
+                setTaskToDelete(null);
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button 
+              variant="destructive"
+              onClick={handleDeleteTask}
+            >
+              Eliminar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
