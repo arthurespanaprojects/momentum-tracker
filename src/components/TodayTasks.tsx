@@ -15,7 +15,7 @@ interface Task {
   title: string;
   description?: string;
   completed: boolean;
-  calendarId: string;
+  due?: string;
 }
 
 interface TodayTasksProps {
@@ -34,47 +34,50 @@ export function TodayTasks({ calendarIds, targetDate, title }: TodayTasksProps) 
   const [formData, setFormData] = useState({ title: '', description: '' });
 
   const loadTasks = async () => {
-    if (!googleAuth.isSignedIn || !window.gapi?.client?.calendar) {
+    if (!googleAuth.isSignedIn || !window.gapi?.client?.tasks) {
       setLoading(false);
       return;
     }
 
     try {
       const dateStr = format(targetDate, 'yyyy-MM-dd');
-      const allTasks: Task[] = [];
+      const allTasksData = await googleAuth.listTasks('@default');
+      
+      // Filtrar tareas por fecha de vencimiento
+      const filteredTasks = allTasksData
+        .filter((task: any) => {
+          if (!task.due) return false;
+          // Extraer fecha directamente sin conversión de timezone
+          const taskDate = task.due.split('T')[0];
+          return taskDate === dateStr;
+        })
+        .map((task: any) => ({
+          id: task.id,
+          title: task.title || 'Sin título',
+          description: task.notes,
+          completed: task.status === 'completed',
+          due: task.due,
+        }));
 
-      for (const calendarId of calendarIds) {
-        try {
-          const response = await window.gapi.client.calendar.events.list({
-            calendarId: calendarId,
-            timeMin: `${dateStr}T00:00:00-04:00`,
-            timeMax: `${dateStr}T23:59:59-04:00`,
-            singleEvents: true,
-            orderBy: 'startTime',
-          });
-
-          const events = response.result.items || [];
-          
-          // Filtrar solo eventos que son de un día completo (tareas)
-          const dayTasks = events
-            .filter((event: any) => event.start?.date) // Solo eventos con 'date' (no 'dateTime')
-            .map((event: any) => ({
-              id: event.id,
-              title: event.summary || 'Sin título',
-              description: event.description,
-              completed: event.status === 'completed',
-              calendarId: calendarId,
-            }));
-
-          allTasks.push(...dayTasks);
-        } catch (error) {
-          console.error(`Error loading tasks from calendar ${calendarId}:`, error);
-        }
-      }
-
-      setTasks(allTasks);
+      // Actualizar solo si hay cambios reales
+      setTasks(prevTasks => {
+        // Si no hay tareas anteriores, actualizar directamente
+        if (prevTasks.length === 0) return filteredTasks;
+        
+        // Comparar si hay cambios
+        const hasChanges = filteredTasks.length !== prevTasks.length ||
+          filteredTasks.some((task, idx) => 
+            !prevTasks[idx] || 
+            task.id !== prevTasks[idx].id ||
+            task.title !== prevTasks[idx].title ||
+            task.completed !== prevTasks[idx].completed
+          );
+        
+        return hasChanges ? filteredTasks : prevTasks;
+      });
     } catch (error) {
       console.error('Error loading tasks:', error);
+      // En caso de error, mantener las tareas actuales
     } finally {
       setLoading(false);
     }
@@ -102,9 +105,10 @@ export function TodayTasks({ calendarIds, targetDate, title }: TodayTasksProps) 
   // Escuchar cambios del contexto para refrescar las tareas
   useEffect(() => {
     if (googleAuth.refreshTrigger > 0 && googleAuth.isSignedIn) {
+      // Solo recargar si no somos nosotros quienes disparamos el cambio
       setTimeout(() => {
         loadTasks();
-      }, 600);
+      }, 200);
     }
   }, [googleAuth.refreshTrigger]);
 
@@ -112,17 +116,22 @@ export function TodayTasks({ calendarIds, targetDate, title }: TodayTasksProps) 
     if (!googleAuth.isSignedIn) return;
 
     try {
-      const newStatus = task.completed ? 'confirmed' : 'completed';
+      const newStatus = (task.completed ? 'needsAction' : 'completed') as 'needsAction' | 'completed';
       
-      await googleAuth.updateEvent(task.calendarId, task.id, {
-        status: newStatus,
-      } as any);
-
+      // Actualizar UI inmediatamente (optimistic update)
       setTasks(prev =>
         prev.map(t =>
           t.id === task.id ? { ...t, completed: !t.completed } : t
         )
       );
+
+      await googleAuth.updateTask('@default', task.id, {
+        id: task.id,
+        title: task.title,
+        status: newStatus
+      });
+
+      // Notificar al contexto sin recargar (ya actualizamos la UI)
       googleAuth.triggerRefresh();
     } catch (error) {
       console.error('Error updating task:', error);
@@ -133,28 +142,32 @@ export function TodayTasks({ calendarIds, targetDate, title }: TodayTasksProps) 
     if (!googleAuth.isSignedIn || !formData.title.trim()) return;
 
     try {
+      // Convertir fecha local a RFC3339 sin conversión de timezone
       const dateStr = format(targetDate, 'yyyy-MM-dd');
-      const calendarId = calendarIds[0];
+      const dueRFC3339 = `${dateStr}T00:00:00.000Z`;
 
-      const event = {
-        summary: formData.title,
-        description: formData.description,
-        start: { date: dateStr },
-        end: { date: dateStr }
+      const task = {
+        title: formData.title,
+        notes: formData.description,
+        due: dueRFC3339,
+        status: 'needsAction' as 'needsAction' | 'completed'
       };
 
-      const newEvent = await googleAuth.createEvent(calendarId, event);
+      const newTask = await googleAuth.createTask('@default', task);
       
+      // Actualizar UI inmediatamente
       setTasks(prev => [...prev, {
-        id: newEvent.id,
-        title: newEvent.summary,
-        description: newEvent.description,
+        id: newTask.id,
+        title: newTask.title,
+        description: newTask.notes,
         completed: false,
-        calendarId: calendarId
+        due: newTask.due
       }]);
 
       setFormData({ title: '', description: '' });
       setShowAddDialog(false);
+      
+      // Notificar al contexto
       googleAuth.triggerRefresh();
     } catch (error) {
       console.error('Error creating task:', error);
@@ -165,17 +178,19 @@ export function TodayTasks({ calendarIds, targetDate, title }: TodayTasksProps) 
     if (!googleAuth.isSignedIn || !editingTask || !formData.title.trim()) return;
 
     try {
+      // Convertir fecha local a RFC3339 sin conversión de timezone
       const dateStr = format(targetDate, 'yyyy-MM-dd');
+      const dueRFC3339 = `${dateStr}T00:00:00.000Z`;
 
-      const updatedEvent = {
-        summary: formData.title,
-        description: formData.description,
-        start: { date: dateStr },
-        end: { date: dateStr }
+      const updatedTask = {
+        id: editingTask.id,
+        title: formData.title,
+        notes: formData.description,
+        due: dueRFC3339,
+        status: (editingTask.completed ? 'completed' : 'needsAction') as 'needsAction' | 'completed'
       };
 
-      await googleAuth.updateEvent(editingTask.calendarId, editingTask.id, updatedEvent as any);
-      
+      // Actualizar UI inmediatamente
       setTasks(prev =>
         prev.map(t =>
           t.id === editingTask.id
@@ -184,9 +199,13 @@ export function TodayTasks({ calendarIds, targetDate, title }: TodayTasksProps) 
         )
       );
 
+      await googleAuth.updateTask('@default', editingTask.id, updatedTask);
+
       setFormData({ title: '', description: '' });
       setEditingTask(null);
       setShowEditDialog(false);
+      
+      // Notificar al contexto
       googleAuth.triggerRefresh();
     } catch (error) {
       console.error('Error updating task:', error);
@@ -200,10 +219,15 @@ export function TodayTasks({ calendarIds, targetDate, title }: TodayTasksProps) 
     if (!googleAuth.isSignedIn || !taskToDelete) return;
 
     try {
-      await googleAuth.deleteEvent(taskToDelete.calendarId, taskToDelete.id);
+      // Actualizar UI inmediatamente (optimistic update)
       setTasks(prev => prev.filter(t => t.id !== taskToDelete.id));
       setShowDeleteDialog(false);
+      const deletingTaskId = taskToDelete.id;
       setTaskToDelete(null);
+      
+      await googleAuth.deleteTask('@default', deletingTaskId);
+      
+      // Notificar al contexto
       googleAuth.triggerRefresh();
     } catch (error) {
       console.error('Error deleting task:', error);
@@ -215,34 +239,6 @@ export function TodayTasks({ calendarIds, targetDate, title }: TodayTasksProps) 
     setFormData({ title: task.title, description: task.description || '' });
     setShowEditDialog(true);
   };
-
-  if (!googleAuth.isSignedIn) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">{title}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Conecta Google Calendar para ver tus tareas
-          </p>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (loading) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">{title}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">Cargando tareas...</p>
-        </CardContent>
-      </Card>
-    );
-  }
 
   return (
     <>
@@ -270,7 +266,9 @@ export function TodayTasks({ calendarIds, targetDate, title }: TodayTasksProps) 
           )}
         </CardHeader>
         <CardContent>
-          {tasks.length === 0 ? (
+          {loading ? (
+            <p className="text-sm text-muted-foreground">Cargando tareas...</p>
+          ) : tasks.length === 0 ? (
             <p className="text-sm text-muted-foreground">No hay tareas para este día</p>
           ) : (
             <div className="space-y-2">

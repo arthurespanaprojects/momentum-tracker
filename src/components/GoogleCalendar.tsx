@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { useGoogleCalendar } from '@/hooks/useGoogleCalendar';
 import { useGoogleAuth } from '@/contexts/GoogleAuthContext';
 import { useToast } from '@/components/ui/use-toast';
+import { format } from 'date-fns';
 import './GoogleCalendar.css';
 
 interface GoogleCalendarProps {
@@ -54,8 +55,10 @@ export function GoogleCalendar({ apiKey, calendarIds, clientId }: GoogleCalendar
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [shouldRefetch, setShouldRefetch] = useState(false);
   const eventsCache = useRef<any[]>([]);
+  const [googleTasks, setGoogleTasks] = useState<any[]>([]);
+  const lastTasksUpdate = useRef<number>(0);
+  const loadTasksTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   const [formData, setFormData] = useState<EventFormData>({
     title: '',
@@ -71,10 +74,43 @@ export function GoogleCalendar({ apiKey, calendarIds, clientId }: GoogleCalendar
 
   // Memorizar eventSources para evitar recreación en cada render
   const eventSources = useMemo(() => {
-    return calendarIds.map(id => ({
+    const calendarSources = calendarIds.map(id => ({
       googleCalendarId: id,
     }));
-  }, [calendarIds]);
+
+    // Agregar tareas de Google Tasks como eventos
+    const taskEvents = googleTasks
+      .filter(task => task.due) // Solo tareas con fecha
+      .map(task => {
+        // Extraer fecha directamente sin conversión de timezone
+        const dateStr = task.due.split('T')[0];
+        
+        return {
+          id: `task-${task.id}`,
+          title: task.title,
+          start: dateStr,
+          allDay: true,
+          backgroundColor: task.status === 'completed' ? '#10b981' : '#f59e0b',
+          borderColor: task.status === 'completed' ? '#10b981' : '#f59e0b',
+          extendedProps: {
+            isGoogleTask: true,
+            taskId: task.id,
+            description: task.notes || '',
+            status: task.status,
+            completed: task.status === 'completed'
+          }
+        };
+      });
+
+    return [
+      ...calendarSources,
+      {
+        id: 'google-tasks',
+        events: taskEvents,
+        color: '#f59e0b'
+      }
+    ];
+  }, [calendarIds, googleTasks]);
 
   useEffect(() => {
     if (!apiKey || apiKey === 'PEGA_AQUI_TU_API_KEY') {
@@ -88,47 +124,143 @@ export function GoogleCalendar({ apiKey, calendarIds, clientId }: GoogleCalendar
 
   // Escuchar cambios del contexto para refrescar el calendario
   useEffect(() => {
-    if (googleAuthContext.refreshTrigger > 0 && calendarRef.current && !isRefreshing) {
-      setTimeout(() => {
-        if (calendarRef.current) {
-          calendarRef.current.getApi().refetchEvents();
-        }
-      }, 500);
+    if (googleAuthContext.refreshTrigger > 0 && googleAuth.isSignedIn) {
+      loadGoogleTasks();
     }
   }, [googleAuthContext.refreshTrigger]);
+
+  // Cargar tareas de Google Tasks con debounce
+  const loadGoogleTasks = async (immediate = false) => {
+    if (!googleAuth.isSignedIn || !window.gapi?.client?.tasks) return;
+
+    // Evitar múltiples llamadas en menos de 300ms
+    const now = Date.now();
+    if (!immediate && now - lastTasksUpdate.current < 300) {
+      return;
+    }
+
+    // Cancelar timeout anterior si existe
+    if (loadTasksTimeoutRef.current) {
+      clearTimeout(loadTasksTimeoutRef.current);
+    }
+
+    const doLoad = async () => {
+      try {
+        const tasks = await googleAuth.listTasks('@default');
+        // Solo actualizar si hay cambios (evita parpadeos innecesarios)
+        setGoogleTasks(prevTasks => {
+          // Si no hay tareas anteriores, actualizar directamente
+          if (prevTasks.length === 0) return tasks;
+          
+          // Comparar si realmente hay cambios
+          const hasChanges = tasks.length !== prevTasks.length ||
+            tasks.some((task: any, idx: number) => 
+              !prevTasks[idx] || 
+              task.id !== prevTasks[idx].id ||
+              task.title !== prevTasks[idx].title ||
+              task.status !== prevTasks[idx].status ||
+              task.due !== prevTasks[idx].due
+            );
+          
+          return hasChanges ? tasks : prevTasks;
+        });
+        lastTasksUpdate.current = Date.now();
+      } catch (error) {
+        console.error('Error loading Google Tasks:', error);
+        // En caso de error, mantener las tareas actuales (no limpiar)
+      }
+    };
+
+    if (immediate) {
+      await doLoad();
+    } else {
+      loadTasksTimeoutRef.current = setTimeout(doLoad, 100);
+    }
+  };
+
+  // Cargar tareas al iniciar y cuando cambie el estado de autenticación
+  useEffect(() => {
+    if (googleAuth.isSignedIn) {
+      loadGoogleTasks(true);
+    }
+  }, [googleAuth.isSignedIn]);
+
+  // Actualizar solo los eventos de tareas cuando cambien
+  useEffect(() => {
+    if (!calendarRef.current || !googleAuth.isSignedIn) return;
+    
+    const calendarApi = calendarRef.current.getApi();
+    const taskSource = calendarApi.getEventSourceById('google-tasks');
+    
+    if (taskSource) {
+      // Refetch solo el source de tareas, no todos los eventos
+      taskSource.refetch();
+    }
+  }, [googleTasks]);
+
+  // Cleanup para el timeout de loadGoogleTasks
+  useEffect(() => {
+    return () => {
+      if (loadTasksTimeoutRef.current) {
+        clearTimeout(loadTasksTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Polling automático para detectar cambios externos (cada 30 segundos)
   useEffect(() => {
     if (!googleAuth.isSignedIn) return;
 
     const intervalId = setInterval(() => {
-      if (calendarRef.current && !isRefreshing && !isSubmitting) {
-        calendarRef.current.getApi().refetchEvents();
+      if (!isRefreshing && !isSubmitting) {
+        // Solo recargar tareas - el useMemo actualizará el calendario automáticamente
+        loadGoogleTasks();
       }
     }, 30000); // 30 segundos
 
     return () => clearInterval(intervalId);
-  }, [googleAuth.isSignedIn, isRefreshing, isSubmitting]);
+  }, [googleAuth.isSignedIn]);
 
   const handleEventClick = (info: any) => {
     const event = info.event;
-    const isTask = event.extendedProps.eventType === 'task' || !event.start;
+    const isGoogleTask = event.extendedProps.isGoogleTask;
     
-    const eventId = event.id || event.extendedProps?.id || event._def?.publicId;
-    const calendarId = event.source?.googleCalendarId || calendarIds[0];
-    
-    setSelectedEvent({
-      id: eventId,
-      calendarId: calendarId,
-      title: event.title,
-      start: event.start?.toISOString() || '',
-      end: event.end?.toISOString(),
-      description: event.extendedProps.description || 'Sin descripción',
-      location: event.extendedProps.location || '',
-      isTask,
-      completed: event.extendedProps.status === 'completed'
-    });
-    setShowEventDialog(true);
+    if (isGoogleTask) {
+      // Es una tarea de Google Tasks
+      const taskId = event.extendedProps.taskId;
+      const task = googleTasks.find(t => t.id === taskId);
+      
+      if (task) {
+        setSelectedEvent({
+          id: taskId,
+          calendarId: '@default',
+          title: task.title,
+          start: task.due || '',
+          description: task.notes || 'Sin descripción',
+          isTask: true,
+          completed: task.status === 'completed'
+        });
+        setShowEventDialog(true);
+      }
+    } else {
+      // Es un evento de Calendar
+      const isTask = event.extendedProps.eventType === 'task' || !event.start;
+      const eventId = event.id || event.extendedProps?.id || event._def?.publicId;
+      const calendarId = event.source?.googleCalendarId || calendarIds[0];
+      
+      setSelectedEvent({
+        id: eventId,
+        calendarId: calendarId,
+        title: event.title,
+        start: event.start?.toISOString() || '',
+        end: event.end?.toISOString(),
+        description: event.extendedProps.description || 'Sin descripción',
+        location: event.extendedProps.location || '',
+        isTask,
+        completed: event.extendedProps.status === 'completed'
+      });
+      setShowEventDialog(true);
+    }
   };
 
   const handleDateClick = (info: any) => {
@@ -176,42 +308,28 @@ export function GoogleCalendar({ apiKey, calendarIds, clientId }: GoogleCalendar
 
     setIsSubmitting(true);
     try {
-      const calendarId = calendarIds[0]; // Usar el calendario primario
-      
-      const event = {
-        summary: formData.title,
-        description: formData.description,
-        start: {
-          date: formData.startDate
-        },
-        end: {
-          date: formData.startDate
-        }
+      // Crear como tarea en Google Tasks
+      // Crear RFC3339 sin conversión de timezone (mantener fecha local)
+      const dueRFC3339 = `${formData.startDate}T00:00:00.000Z`;
+
+      const task = {
+        title: formData.title,
+        notes: formData.description,
+        due: dueRFC3339,
+        status: 'needsAction' as 'needsAction' | 'completed'
       };
 
-      await googleAuth.createEvent(calendarId, event);
+      await googleAuth.createTask('@default', task);
       
       toast({
         title: 'Tarea creada',
         description: 'La tarea se agregó correctamente'
       });
-      
+
       setShowAddDialog(false);
       
-      // Refrescar calendario de forma suave
-      requestAnimationFrame(() => {
-        setTimeout(() => {
-          if (calendarRef.current && !isRefreshing) {
-            setIsRefreshing(true);
-            setShouldRefetch(true);
-            calendarRef.current.getApi().refetchEvents();
-            setTimeout(() => {
-              setIsRefreshing(false);
-              setShouldRefetch(false);
-            }, 1000);
-          }
-        }, 800);
-      });
+      // Recargar tareas inmediatamente (el useMemo actualizará el calendario automáticamente)
+      await loadGoogleTasks(true);
     } catch (error) {
       console.error('Error creando evento:', error);
       toast({
@@ -240,15 +358,10 @@ export function GoogleCalendar({ apiKey, calendarIds, clientId }: GoogleCalendar
   };
 
   const handleUpdateEvent = async () => {
-    if (!googleAuth.isSignedIn || !selectedEvent?.id || !selectedEvent?.calendarId) {
-      console.error('❌ Faltan datos:', {
-        isSignedIn: googleAuth.isSignedIn,
-        eventId: selectedEvent?.id,
-        calendarId: selectedEvent?.calendarId
-      });
+    if (!googleAuth.isSignedIn || !selectedEvent?.id) {
       toast({
         title: 'Error',
-        description: 'No se puede actualizar el evento',
+        description: 'No se puede actualizar',
         variant: 'destructive'
       });
       return;
@@ -265,41 +378,53 @@ export function GoogleCalendar({ apiKey, calendarIds, clientId }: GoogleCalendar
 
     setIsSubmitting(true);
     try {
-      const updatedEvent = {
-        summary: editFormData.title,
-        description: editFormData.description,
-        start: {
-          date: editFormData.startDate
-        },
-        end: {
-          date: editFormData.startDate
-        }
-      };
+      if (selectedEvent.calendarId === '@default') {
+        // Es una Google Task
+        // Crear RFC3339 sin conversión de timezone (mantener fecha local)
+        const dueRFC3339 = `${editFormData.startDate}T00:00:00.000Z`;
 
-      await googleAuth.updateEvent(selectedEvent.calendarId, selectedEvent.id, updatedEvent as any);
+        const updatedTask = {
+          id: selectedEvent.id,
+          title: editFormData.title,
+          notes: editFormData.description,
+          due: dueRFC3339,
+          status: (selectedEvent.completed ? 'completed' : 'needsAction') as 'needsAction' | 'completed'
+        };
+
+        await googleAuth.updateTask('@default', selectedEvent.id, updatedTask);
+      } else {
+        // Es un Calendar Event
+        const updatedEvent = {
+          summary: editFormData.title,
+          description: editFormData.description,
+          start: {
+            date: editFormData.startDate
+          },
+          end: {
+            date: editFormData.startDate
+          }
+        };
+
+        await googleAuth.updateEvent(selectedEvent.calendarId, selectedEvent.id, updatedEvent as any);
+      }
       
       toast({
-        title: 'Tarea actualizada',
+        title: selectedEvent.calendarId === '@default' ? 'Tarea actualizada' : 'Evento actualizado',
         description: 'Los cambios se guardaron correctamente'
       });
       
       setShowEditDialog(false);
       setSelectedEvent(null);
       
-      // Refrescar calendario de forma suave
-      requestAnimationFrame(() => {
-        setTimeout(() => {
-          if (calendarRef.current && !isRefreshing) {
-            setIsRefreshing(true);
-            setShouldRefetch(true);
-            calendarRef.current.getApi().refetchEvents();
-            setTimeout(() => {
-              setIsRefreshing(false);
-              setShouldRefetch(false);
-            }, 1000);
-          }
-        }, 800);
-      });
+      // Recargar según el tipo
+      if (selectedEvent.calendarId === '@default') {
+        await loadGoogleTasks(true);
+      } else {
+        // Solo refrescar eventos de calendario
+        if (calendarRef.current) {
+          calendarRef.current.getApi().refetchEvents();
+        }
+      }
     } catch (error) {
       console.error('Error actualizando evento:', error);
       toast({
@@ -318,10 +443,10 @@ export function GoogleCalendar({ apiKey, calendarIds, clientId }: GoogleCalendar
   };
 
   const handleDeleteEvent = async () => {
-    if (!googleAuth.isSignedIn || !selectedEvent?.id || !selectedEvent?.calendarId) {
+    if (!googleAuth.isSignedIn || !selectedEvent?.id) {
       toast({
         title: 'Error',
-        description: 'No se puede eliminar el evento',
+        description: 'No se puede eliminar',
         variant: 'destructive'
       });
       return;
@@ -329,30 +454,31 @@ export function GoogleCalendar({ apiKey, calendarIds, clientId }: GoogleCalendar
 
     setIsSubmitting(true);
     try {
-      await googleAuth.deleteEvent(selectedEvent.calendarId, selectedEvent.id);
+      if (selectedEvent.calendarId === '@default') {
+        // Es una Google Task
+        await googleAuth.deleteTask('@default', selectedEvent.id);
+      } else {
+        // Es un Calendar Event
+        await googleAuth.deleteEvent(selectedEvent.calendarId, selectedEvent.id);
+      }
       
       toast({
-        title: 'Tarea eliminada',
-        description: 'La tarea se eliminó correctamente'
+        title: selectedEvent.calendarId === '@default' ? 'Tarea eliminada' : 'Evento eliminado',
+        description: selectedEvent.calendarId === '@default' ? 'La tarea se eliminó correctamente' : 'El evento se eliminó correctamente'
       });
       
       setShowDeleteDialog(false);
       setSelectedEvent(null);
       
-      // Refrescar calendario de forma suave
-      requestAnimationFrame(() => {
-        setTimeout(() => {
-          if (calendarRef.current && !isRefreshing) {
-            setIsRefreshing(true);
-            setShouldRefetch(true);
-            calendarRef.current.getApi().refetchEvents();
-            setTimeout(() => {
-              setIsRefreshing(false);
-              setShouldRefetch(false);
-            }, 1000);
-          }
-        }, 800);
-      });
+      // Recargar según el tipo
+      if (selectedEvent.calendarId === '@default') {
+        await loadGoogleTasks(true);
+      } else {
+        // Solo refrescar eventos de calendario
+        if (calendarRef.current) {
+          calendarRef.current.getApi().refetchEvents();
+        }
+      }
     } catch (error) {
       console.error('Error eliminando evento:', error);
       toast({
@@ -366,13 +492,26 @@ export function GoogleCalendar({ apiKey, calendarIds, clientId }: GoogleCalendar
   };
 
   const handleCompleteTask = async () => {
-    if (!googleAuth.isSignedIn || !selectedEvent?.id || !selectedEvent?.calendarId) return;
+    if (!googleAuth.isSignedIn || !selectedEvent?.id) return;
 
     setIsSubmitting(true);
     try {
-      await googleAuth.updateEvent(selectedEvent.calendarId, selectedEvent.id, {
-        status: 'completed'
-      } as any);
+      if (selectedEvent.calendarId === '@default') {
+        // Es una Google Task
+        const task = googleTasks.find(t => t.id === selectedEvent.id);
+        if (task) {
+          await googleAuth.updateTask('@default', selectedEvent.id, {
+            id: selectedEvent.id,
+            title: task.title,
+            status: 'completed' as 'needsAction' | 'completed'
+          });
+        }
+      } else {
+        // Es un Calendar Event
+        await googleAuth.updateEvent(selectedEvent.calendarId, selectedEvent.id, {
+          status: 'completed'
+        } as any);
+      }
       
       toast({
         title: 'Tarea completada',
@@ -381,20 +520,15 @@ export function GoogleCalendar({ apiKey, calendarIds, clientId }: GoogleCalendar
       
       setShowEventDialog(false);
       
-      // Refrescar calendario de forma suave
-      requestAnimationFrame(() => {
-        setTimeout(() => {
-          if (calendarRef.current && !isRefreshing) {
-            setIsRefreshing(true);
-            setShouldRefetch(true);
-            calendarRef.current.getApi().refetchEvents();
-            setTimeout(() => {
-              setIsRefreshing(false);
-              setShouldRefetch(false);
-            }, 1000);
-          }
-        }, 800);
-      });
+      // Recargar según el tipo
+      if (selectedEvent.calendarId === '@default') {
+        await loadGoogleTasks(true);
+      } else {
+        // Solo refrescar eventos de calendario
+        if (calendarRef.current) {
+          calendarRef.current.getApi().refetchEvents();
+        }
+      }
     } catch (error) {
       console.error('Error completando tarea:', error);
       toast({
@@ -486,19 +620,16 @@ export function GoogleCalendar({ apiKey, calendarIds, clientId }: GoogleCalendar
             return classes;
           }}
           eventDataTransform={(event) => {
-            // Solo actualizar cache durante refetch explícito
-            if (shouldRefetch) {
-              const idx = eventsCache.current.findIndex(e => e.id === event.id);
-              if (idx >= 0) {
-                eventsCache.current[idx] = event;
-              } else {
-                eventsCache.current.push(event);
-              }
+            // Actualizar cache de eventos
+            const idx = eventsCache.current.findIndex(e => e.id === event.id);
+            if (idx >= 0) {
+              eventsCache.current[idx] = event;
+            } else {
+              eventsCache.current.push(event);
             }
             return event;
           }}
           lazyFetching={true}
-          refetchResourcesOnNavigate={false}
           progressiveEventRendering={true}
         />
       </div>

@@ -32,6 +32,7 @@ const SCOPES = 'https://www.googleapis.com/auth/calendar.events https://www.goog
 const STORAGE_KEY = 'google_oauth_token';
 const STORAGE_EMAIL_KEY = 'google_user_email';
 const TOKEN_EXPIRY_KEY = 'google_token_expiry';
+const DEFAULT_TASK_LIST = '@default'; // Lista de tareas por defecto de Google
 
 export const useGoogleCalendar = (clientId: string) => {
   const [isSignedIn, setIsSignedIn] = useState(false);
@@ -334,6 +335,38 @@ export const useGoogleCalendar = (clientId: string) => {
     }
   }, [isSignedIn, accessToken]);
 
+  // Listar tareas de Google Tasks
+  const listTasks = useCallback(async (taskListId: string = DEFAULT_TASK_LIST) => {
+    if (!isSignedIn || !accessToken) throw new Error('No autenticado');
+
+    try {
+      const response = await window.gapi.client.tasks.tasks.list({
+        tasklist: taskListId,
+        showCompleted: true,
+        showHidden: false,
+      });
+      return response.result.items || [];
+    } catch (error) {
+      console.error('Error listando tareas:', error);
+      throw error;
+    }
+  }, [isSignedIn, accessToken]);
+
+  // Eliminar tarea de Google Tasks
+  const deleteTask = useCallback(async (taskListId: string, taskId: string) => {
+    if (!isSignedIn || !accessToken) throw new Error('No autenticado');
+
+    try {
+      await window.gapi.client.tasks.tasks.delete({
+        tasklist: taskListId,
+        task: taskId,
+      });
+    } catch (error) {
+      console.error('Error eliminando tarea:', error);
+      throw error;
+    }
+  }, [isSignedIn, accessToken]);
+
   return {
     isSignedIn,
     isInitialized,
@@ -345,6 +378,8 @@ export const useGoogleCalendar = (clientId: string) => {
     deleteEvent,
     createTask,
     updateTask,
+    listTasks,
+    deleteTask,
   };
 };
 

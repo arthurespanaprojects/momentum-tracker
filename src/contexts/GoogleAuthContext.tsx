@@ -10,6 +10,10 @@ interface GoogleAuthContextType {
   createEvent: (calendarId: string, event: any) => Promise<any>;
   updateEvent: (calendarId: string, eventId: string, event: any) => Promise<any>;
   deleteEvent: (calendarId: string, eventId: string) => Promise<void>;
+  createTask: (taskListId: string, task: any) => Promise<any>;
+  updateTask: (taskListId: string, taskId: string, task: any) => Promise<any>;
+  listTasks: (taskListId?: string) => Promise<any[]>;
+  deleteTask: (taskListId: string, taskId: string) => Promise<void>;
   refreshTrigger: number;
   triggerRefresh: () => void;
 }
