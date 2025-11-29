@@ -56,7 +56,7 @@ try:
         print("\n📋 INSTRUCCIONES MANUALES:")
         print("=" * 60)
         print("Necesitas ejecutar el SQL manualmente en Supabase:")
-        print("\n1. Ve a: https://supabase.com/dashboard/project/kxotzmvtdgzlctcarrhh/sql/new")
+        print("\n1. Ve a: https://supabase.com/dashboard/project/YOUR_PROJECT_ID/sql/new")
         print("2. Copia el contenido de: supabase/migrations/20251117000000_initial_schema.sql")
         print("3. Pégalo en el SQL Editor")
         print("4. Haz clic en RUN")

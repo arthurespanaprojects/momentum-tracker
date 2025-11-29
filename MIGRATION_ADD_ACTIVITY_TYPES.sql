@@ -1,5 +1,5 @@
 -- IMPORTANTE: Ejecuta este SQL en Supabase Dashboard para agregar soporte de actividades por cantidad
--- https://supabase.com/dashboard/project/kxotzmvtdgzlctcarrhh/sql/new
+-- https://supabase.com/dashboard/project/YOUR_PROJECT_ID/sql/new
 
 -- 1. Agregar columnas a la tabla activities
 ALTER TABLE activities ADD COLUMN IF NOT EXISTS activity_type TEXT NOT NULL DEFAULT 'time' CHECK (activity_type IN ('time', 'count'));

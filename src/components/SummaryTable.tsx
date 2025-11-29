@@ -34,18 +34,29 @@ interface WeeklySummary {
   };
 }
 
+interface ActivityGoal {
+  id?: string;
+  text: string;
+  completed: boolean;
+  display_order?: number;
+}
+
 interface SummaryTableProps {
   activities: Activity[];
   summary: WeeklySummary;
   entries: DailyEntry;
   weekStart: Date;
+  activityGoals: {[activityId: string]: ActivityGoal[]};
   onUpdateGoal: (activityId: string, value: number) => void;
   onUpdateReflection: (activityId: string, text: string) => void;
   onUpdateEntry: (activityId: string, date: string, minutes: number) => void;
-  onStartTimer: (activityId: string, activityName: string) => void;
+  onStartTimer: (activityId: string, activityName: string, forDate: string) => void;
   onActivityAdded: () => void;
   onReorderActivities: (fromActivityId: string, toActivityId: string) => void;
   onMoveToEnd: (activityId: string) => void;
+  onAddActivityGoal: (activityId: string, text: string) => void;
+  onToggleActivityGoal: (activityId: string, goalId: string, completed: boolean) => void;
+  onDeleteActivityGoal: (activityId: string, goalId: string) => void;
 }
 
 export function SummaryTable({
@@ -53,6 +64,7 @@ export function SummaryTable({
   summary,
   entries,
   weekStart,
+  activityGoals,
   onUpdateGoal,
   onUpdateReflection,
   onUpdateEntry,
@@ -60,6 +72,9 @@ export function SummaryTable({
   onActivityAdded,
   onReorderActivities,
   onMoveToEnd,
+  onAddActivityGoal,
+  onToggleActivityGoal,
+  onDeleteActivityGoal,
 }: SummaryTableProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
@@ -74,7 +89,7 @@ export function SummaryTable({
   
   const today = getTodayInLaPaz();
   const [localValues, setLocalValues] = useState<{[key: string]: string}>({});
-  const [goals, setGoals] = useState<{[activityId: string]: Array<{text: string, completed: boolean}>}>({});
+  const [goals, setGoals] = useState<{[activityId: string]: Array<{id?: string, text: string, completed: boolean}>}>({});
   const [draggedActivity, setDraggedActivity] = useState<string | null>(null);
   const [dragOverActivity, setDragOverActivity] = useState<string | null>(null);
   const [celebratingActivity, setCelebratingActivity] = useState<string | null>(null);
@@ -82,11 +97,18 @@ export function SummaryTable({
   const rowRefs = useRef<{[key: string]: HTMLTableRowElement | null}>({});
   const [celebrationPosition, setCelebrationPosition] = useState<{top: number, height: number} | null>(null);
   const [isDraggingFromHandle, setIsDraggingFromHandle] = useState(false);
+  const [focusedCell, setFocusedCell] = useState<string | null>(null);
+  const [selectedDay, setSelectedDay] = useState<Date>(today);
 
   // Limpiar valores locales cuando cambia la semana
   useEffect(() => {
     setLocalValues({});
   }, [weekStart]);
+
+  // Actualizar goals desde props cuando cambian
+  useEffect(() => {
+    setGoals(activityGoals);
+  }, [activityGoals]);
 
   // Detectar cuando una actividad alcanza el 100%
   useEffect(() => {
@@ -236,22 +258,33 @@ export function SummaryTable({
           <thead>
             <tr className="bg-muted">
               <th className="p-2 text-left border border-border font-semibold text-foreground sticky left-0 bg-muted z-10 min-w-[140px]">Actividad</th>
-              {weekDays.map((day) => (
-                <th
-                  key={day.toISOString()}
-                  className={cn(
-                    "p-2 text-center border border-border font-semibold min-w-[50px] max-w-[50px]",
-                    isSameDay(day, today) ? "bg-primary/10" : "bg-muted"
-                  )}
-                >
-                  <div className="text-xs text-foreground">
-                    {format(day, "EEE", { locale: es })}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {format(day, "d MMM", { locale: es })}
-                  </div>
-                </th>
-              ))}
+              {weekDays.map((day) => {
+                const isToday = isSameDay(day, today);
+                const isSelected = isSameDay(day, selectedDay);
+                const isPastOrToday = day <= today;
+                const showSelectionRing = isSelected && !isToday;
+                
+                return (
+                  <th
+                    key={day.toISOString()}
+                    onClick={() => isPastOrToday && setSelectedDay(day)}
+                    className={cn(
+                      "p-2 text-center border border-border font-semibold min-w-[50px] max-w-[50px] transition-colors",
+                      isToday && "bg-primary/10",
+                      !isToday && "bg-muted",
+                      showSelectionRing && "ring-2 ring-primary ring-inset",
+                      isPastOrToday && "cursor-pointer hover:bg-primary/5"
+                    )}
+                  >
+                    <div className="text-xs text-foreground">
+                      {format(day, "EEE", { locale: es })}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {format(day, "d MMM", { locale: es })}
+                    </div>
+                  </th>
+                );
+              })}
               <th className="p-2 text-center border border-border font-semibold text-foreground min-w-[70px] max-w-[70px]">Total</th>
               <th className="p-2 text-center border border-border font-semibold text-foreground min-w-[90px] max-w-[90px]">Progreso</th>
               <th className="p-2 text-center border border-border font-semibold text-foreground min-w-[90px] max-w-[90px]">Metas</th>
@@ -319,8 +352,8 @@ export function SummaryTable({
                           variant="ghost"
                           size="icon"
                           className="h-6 w-6 flex-shrink-0"
-                          onClick={() => onStartTimer(activity.id, activity.name)}
-                          title="Iniciar cronómetro"
+                          onClick={() => onStartTimer(activity.id, activity.name, format(selectedDay, "yyyy-MM-dd"))}
+                          title={`Iniciar cronómetro para ${format(selectedDay, "d MMM", { locale: es })}`}
                         >
                           <Play className="h-3 w-3" />
                         </Button>
@@ -330,12 +363,12 @@ export function SummaryTable({
                           size="icon"
                           className="h-6 w-6 flex-shrink-0"
                           onClick={() => {
-                            const todayKey = format(today, "yyyy-MM-dd");
-                            const currentValue = entries[activity.id]?.[todayKey] || 0;
+                            const selectedDayKey = format(selectedDay, "yyyy-MM-dd");
+                            const currentValue = entries[activity.id]?.[selectedDayKey] || 0;
                             const newValue = currentValue + 1;
-                            onUpdateEntry(activity.id, todayKey, newValue);
+                            onUpdateEntry(activity.id, selectedDayKey, newValue);
                           }}
-                          title="Sumar 1 al día actual"
+                          title={`Sumar 1 a ${format(selectedDay, "d MMM", { locale: es })}`}
                         >
                           <Plus className="h-3 w-3" />
                         </Button>
@@ -349,28 +382,129 @@ export function SummaryTable({
                     const heatLevel = getHeatLevel(actualValue, isTime);
                     const cellKey = `${activity.id}-${dateKey}`;
                     const displayValue = localValues[cellKey] !== undefined ? localValues[cellKey] : (actualValue > 0 ? actualValue : "");
+                    
+                    // Calcular meta diaria sugerida (solo para el día actual)
+                    const isToday = isSameDay(day, today);
+                    const isPast = day < today && !isSameDay(day, today);
+                    const targetValue = data.targetValue;
+                    let dailySuggestion = "";
+                    let dailyTarget = 0;
+                    
+                    // Calcular objetivo diario DINÁMICO para el día ACTUAL
+                    if (targetValue > 0 && isToday) {
+                      // Calcular total SIN incluir el valor de hoy
+                      const totalRealizedBeforeToday = weekDays.reduce((sum, d) => {
+                        if (isSameDay(d, today)) return sum; // Excluir hoy del cálculo
+                        const dKey = format(d, "yyyy-MM-dd");
+                        return sum + (entries[activity.id]?.[dKey] || 0);
+                      }, 0);
+                      
+                      const remaining = targetValue - (isTime ? totalRealizedBeforeToday / 60 : totalRealizedBeforeToday);
+                      
+                      if (remaining > 0) {
+                        const todayIndex = weekDays.findIndex(d => isSameDay(d, today));
+                        const daysRemaining = 7 - todayIndex;
+                        dailyTarget = remaining / daysRemaining;
+                        
+                        const dayOfWeek = day.getDay();
+                        if (dayOfWeek === 0) {
+                          dailyTarget *= 0.7;
+                        }
+                        
+                        // Para actividades de tiempo, convertir a minutos para mostrar en la casilla
+                        // Para actividades de conteo, dejar como está
+                        const dailyTargetInCellUnits = isTime ? dailyTarget * 60 : dailyTarget;
+                        dailySuggestion = Math.ceil(dailyTargetInCellUnits).toString();
+                      }
+                    }
+                    
+                    // Determinar el color de fondo según el estado del día
+                    let bgClass = `bg-heat-${heatLevel}`;
+                    
+                    // Si ya se alcanzó el 100% de la meta semanal, toda la fila es verde
+                    if (percentage >= 100) {
+                      bgClass = "bg-emerald-950/30";
+                    } else if ((isPast || isToday) && targetValue > 0) {
+                      const dayValue = isTime ? actualValue / 60 : actualValue;
+                      
+                      if (isPast) {
+                        // Días pasados: usar objetivo base (meta/7)
+                        const baseDailyGoal = targetValue / 7;
+                        const dayOfWeek = day.getDay();
+                        const adjustedGoal = dayOfWeek === 0 ? baseDailyGoal * 0.7 : baseDailyGoal;
+                        
+                        if (dayValue === 0) {
+                          bgClass = "bg-red-950/40";
+                        } else if (dayValue < adjustedGoal) {
+                          bgClass = "bg-amber-950/30";
+                        } else {
+                          bgClass = "bg-emerald-950/30";
+                        }
+                      } else if (isToday && dailyTarget > 0) {
+                        // Día actual: pintar progresivamente según la hora
+                        const now = new Date();
+                        const currentHour = now.getHours();
+                        const currentMinute = now.getMinutes();
+                        const progressOfDay = (currentHour * 60 + currentMinute) / (24 * 60); // 0 a 1
+                        const goalThreshold = Math.ceil(dailyTarget);
+                        
+                        if (dayValue >= goalThreshold) {
+                          // Ya alcanzó el objetivo: verde completo
+                          bgClass = "bg-emerald-950/30";
+                        } else if (dayValue === 0) {
+                          // Vacío: gradualmente más rojo según avanza el día
+                          const opacity = Math.floor(progressOfDay * 40);
+                          bgClass = `bg-red-950/${opacity}`;
+                        } else if (dayValue < goalThreshold) {
+                          // Por debajo: gradualmente más amarillo/naranja
+                          const opacity = Math.floor(progressOfDay * 30);
+                          bgClass = `bg-amber-950/${opacity}`;
+                        }
+                      }
+                    }
+
+                    // Determinar si mostrar el objetivo como badge
+                    // Para comparar, usar la misma unidad que las casillas (minutos para tiempo, conteo para count)
+                    const dayValueInCellUnits = actualValue;
+                    const goalThresholdInCellUnits = isTime ? Math.ceil(dailyTarget * 60) : Math.ceil(dailyTarget);
+                    const goalReached = isToday && dailyTarget > 0 && dayValueInCellUnits >= goalThresholdInCellUnits;
+                    const showGoalBadge = isToday && dailySuggestion && !goalReached;
+                    const isFocused = focusedCell === cellKey;
+                    const hasValue = actualValue > 0 || displayValue !== "";
 
                     return (
                       <td
                         key={dateKey}
                         className={cn(
-                          "p-2 border border-border text-center cursor-text",
-                          `bg-heat-${heatLevel}`
+                          "p-2 border border-border text-center cursor-text relative transition-colors duration-300 overflow-hidden",
+                          bgClass
                         )}
                       >
-                        <span
-                          contentEditable
-                          suppressContentEditableWarning
-                          onInput={(e) => {
-                            const val = e.currentTarget.textContent || "";
+                        {showGoalBadge && (
+                          <span 
+                            className={cn(
+                              "absolute pointer-events-none transition-all duration-300 ease-in-out text-muted-foreground/40 font-medium z-0",
+                              !isFocused && !hasValue && "text-base top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2",
+                              (isFocused || hasValue) && "text-[10px] top-1 left-1 translate-x-0 translate-y-0"
+                            )}
+                          >
+                            {dailySuggestion}
+                          </span>
+                        )}
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={displayValue}
+                          onChange={(e) => {
+                            const val = e.target.value;
                             if (val === "" || /^\d*\.?\d*$/.test(val)) {
                               setLocalValues(prev => ({ ...prev, [cellKey]: val }));
-                            } else {
-                              e.currentTarget.textContent = localValues[cellKey] || displayValue.toString();
                             }
                           }}
+                          onFocus={() => setFocusedCell(cellKey)}
                           onBlur={(e) => {
-                            const val = e.currentTarget.textContent || "";
+                            setFocusedCell(null);
+                            const val = e.target.value;
                             const numValue = val === "" ? 0 : parseFloat(val) || 0;
                             if (numValue !== actualValue) {
                               onUpdateEntry(activity.id, dateKey, numValue);
@@ -387,10 +521,8 @@ export function SummaryTable({
                               e.currentTarget.blur();
                             }
                           }}
-                          className="font-semibold text-foreground focus:outline-none block w-full text-base"
-                        >
-                          {displayValue || ""}
-                        </span>
+                          className="font-semibold text-foreground focus:outline-none focus:ring-0 w-full text-base text-center bg-transparent border-0 p-0 relative z-10"
+                        />
                       </td>
                     );
                   })}
@@ -500,13 +632,13 @@ export function SummaryTable({
                   <td className="border border-border p-2 max-w-[90px]">
                     <div className="flex flex-col gap-1">
                       {(goals[activity.id] || []).map((goal, idx) => (
-                        <div key={idx} className="flex items-start gap-1 group">
+                        <div key={goal.id || idx} className="flex items-start gap-1 group">
                           <Checkbox
                             checked={goal.completed}
                             onCheckedChange={(checked) => {
-                              const newGoals = [...(goals[activity.id] || [])];
-                              newGoals[idx] = { ...goal, completed: checked as boolean };
-                              setGoals({ ...goals, [activity.id]: newGoals });
+                              if (goal.id) {
+                                onToggleActivityGoal(activity.id, goal.id, checked as boolean);
+                              }
                             }}
                             className="mt-0.5 flex-shrink-0"
                           />
@@ -520,8 +652,9 @@ export function SummaryTable({
                           </span>
                           <button
                             onClick={() => {
-                              const newGoals = (goals[activity.id] || []).filter((_, i) => i !== idx);
-                              setGoals({ ...goals, [activity.id]: newGoals });
+                              if (goal.id) {
+                                onDeleteActivityGoal(activity.id, goal.id);
+                              }
                             }}
                             className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity flex-shrink-0"
                           >
@@ -536,9 +669,7 @@ export function SummaryTable({
                           className="text-xs bg-transparent border-0 focus:outline-none placeholder:text-muted-foreground/50 p-0"
                           onKeyDown={(e) => {
                             if (e.key === 'Enter' && e.currentTarget.value.trim()) {
-                              const newGoal = { text: e.currentTarget.value.trim(), completed: false };
-                              const currentGoals = goals[activity.id] || [];
-                              setGoals({ ...goals, [activity.id]: [...currentGoals, newGoal] });
+                              onAddActivityGoal(activity.id, e.currentTarget.value.trim());
                               e.currentTarget.value = '';
                             }
                           }}

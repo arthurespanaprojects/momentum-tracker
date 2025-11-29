@@ -116,7 +116,7 @@ except Exception as e:
     
     # Plan B: Mostrar el SQL para ejecución manual
     print("\nPor favor ejecuta este SQL en:")
-    print(f"https://supabase.com/dashboard/project/kxotzmvtdgzlctcarrhh/sql/new\n")
+    print(f"https://supabase.com/dashboard/project/YOUR_PROJECT_ID/sql/new\n")
     print(sql_content)
 
 print("\n🚀 Todo listo! Ahora ejecuta:")

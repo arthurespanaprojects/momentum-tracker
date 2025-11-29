@@ -4,6 +4,7 @@ import { useWeekNavigation } from "@/hooks/use-week-navigation";
 import { WeekNavigator } from "@/components/WeekNavigator";
 import { SummaryTable } from "@/components/SummaryTable";
 import { ActivityTimer } from "@/components/ActivityTimer";
+import { GoogleCalendar } from "@/components/GoogleCalendar";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -30,13 +31,21 @@ interface WeeklySummary {
   };
 }
 
+interface ActivityGoal {
+  id?: string;
+  text: string;
+  completed: boolean;
+  display_order?: number;
+}
+
 const Index = () => {
   const { weekStartDate, weekDisplay, previousWeek, nextWeek, goToToday, currentWeekStart } = useWeekNavigation();
   const [activities, setActivities] = useState<Activity[]>([]);
   const [entries, setEntries] = useState<DailyEntry>({});
   const [summary, setSummary] = useState<WeeklySummary>({});
+  const [activityGoals, setActivityGoals] = useState<{[activityId: string]: ActivityGoal[]}>({});
   const [loading, setLoading] = useState(true);
-  const [timerActivity, setTimerActivity] = useState<{ id: string; name: string } | null>(null);
+  const [timerActivity, setTimerActivity] = useState<{ id: string; name: string; forDate: string } | null>(null);
   const { toast } = useToast();
 
   const handleReorderActivities = async (fromActivityId: string, toActivityId: string) => {
@@ -149,7 +158,7 @@ const Index = () => {
       });
       setEntries(entriesMap);
 
-      const { data: goalsData } = await supabase
+      let { data: goalsData } = await supabase
         .from("weekly_goals")
         .select("*")
         .eq("week_start_date", weekStartDate);
@@ -158,6 +167,106 @@ const Index = () => {
         .from("weekly_reflections")
         .select("*")
         .eq("week_start_date", weekStartDate);
+
+      // Para cada actividad sin objetivo, copiar de la semana anterior
+      for (const activity of activityList) {
+        const hasGoal = goalsData?.find(g => g.activity_id === activity.id);
+        
+        if (!hasGoal) {
+          // Buscar objetivo de la semana anterior para esta actividad
+          const previousWeekDate = format(addDays(new Date(weekStartDate), -7), "yyyy-MM-dd");
+          const { data: previousGoal } = await supabase
+            .from("weekly_goals")
+            .select("*")
+            .eq("week_start_date", previousWeekDate)
+            .eq("activity_id", activity.id)
+            .single();
+
+          if (previousGoal) {
+            // Copiar objetivo de la semana anterior
+            const { data: newGoal } = await supabase
+              .from("weekly_goals")
+              .insert({
+                activity_id: activity.id,
+                week_start_date: weekStartDate,
+                target_value: previousGoal.target_value,
+              })
+              .select()
+              .single();
+
+            if (newGoal) {
+              if (!goalsData) {
+                goalsData = [newGoal];
+              } else {
+                goalsData.push(newGoal);
+              }
+            }
+          }
+        }
+      }
+
+      // Cargar metas de actividad (checkboxes)
+      let { data: activityGoalsData } = await supabase
+        .from("activity_goals")
+        .select("*")
+        .eq("week_start_date", weekStartDate)
+        .order("display_order");
+
+      // Para cada actividad sin metas, copiar de la semana anterior (solo NO completadas)
+      const previousWeekDate = format(addDays(new Date(weekStartDate), -7), "yyyy-MM-dd");
+      
+      for (const activity of activityList) {
+        const hasMetas = activityGoalsData?.find(ag => ag.activity_id === activity.id);
+        
+        if (!hasMetas) {
+          // Buscar metas NO completadas de la semana anterior para esta actividad
+          const { data: previousMetas } = await supabase
+            .from("activity_goals")
+            .select("*")
+            .eq("week_start_date", previousWeekDate)
+            .eq("activity_id", activity.id)
+            .eq("completed", false)  // Solo copiar metas NO completadas
+            .order("display_order");
+
+          if (previousMetas && previousMetas.length > 0) {
+            // Copiar metas de la semana anterior
+            const newActivityGoals = previousMetas.map(prevGoal => ({
+              activity_id: activity.id,
+              week_start_date: weekStartDate,
+              goal_text: prevGoal.goal_text,
+              completed: false,
+              display_order: prevGoal.display_order,
+            }));
+
+            const { data: insertedGoals } = await supabase
+              .from("activity_goals")
+              .insert(newActivityGoals)
+              .select();
+
+            if (insertedGoals) {
+              if (!activityGoalsData) {
+                activityGoalsData = insertedGoals;
+              } else {
+                activityGoalsData.push(...insertedGoals);
+              }
+            }
+          }
+        }
+      }
+
+      const activityGoalsMap: {[activityId: string]: ActivityGoal[]} = {};
+      activityGoalsData?.forEach((ag) => {
+        if (!activityGoalsMap[ag.activity_id]) {
+          activityGoalsMap[ag.activity_id] = [];
+        }
+        activityGoalsMap[ag.activity_id].push({
+          id: ag.id,
+          text: ag.goal_text,
+          completed: ag.completed,
+          display_order: ag.display_order,
+        });
+      });
+      setActivityGoals(activityGoalsMap);
 
       const summaryMap: WeeklySummary = {};
       activityList.forEach((activity) => {
@@ -301,11 +410,11 @@ const Index = () => {
   };
 
   const handleTimerStop = async (activityId: string, minutes: number) => {
-    const todayDate = format(new Date(), "yyyy-MM-dd");
-    const currentMinutes = entries[activityId]?.[todayDate] || 0;
+    const targetDate = timerActivity?.forDate || format(new Date(), "yyyy-MM-dd");
+    const currentMinutes = entries[activityId]?.[targetDate] || 0;
     const newTotal = currentMinutes + minutes;
     
-    await handleUpdateEntry(activityId, todayDate, newTotal);
+    await handleUpdateEntry(activityId, targetDate, newTotal);
     setTimerActivity(null);
     
     const hours = (minutes / 60).toFixed(2);
@@ -313,6 +422,92 @@ const Index = () => {
       title: "Tiempo guardado",
       description: `Se agregaron ${hours} horas (${minutes} minutos) a ${timerActivity?.name}`,
     });
+  };
+
+  const handleAddActivityGoal = async (activityId: string, text: string) => {
+    try {
+      const currentGoals = activityGoals[activityId] || [];
+      const display_order = currentGoals.length;
+
+      const { data, error } = await supabase
+        .from("activity_goals")
+        .insert({
+          activity_id: activityId,
+          week_start_date: weekStartDate,
+          goal_text: text,
+          completed: false,
+          display_order,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setActivityGoals(prev => ({
+        ...prev,
+        [activityId]: [...(prev[activityId] || []), {
+          id: data.id,
+          text: data.goal_text,
+          completed: data.completed,
+          display_order: data.display_order,
+        }]
+      }));
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleToggleActivityGoal = async (activityId: string, goalId: string, completed: boolean) => {
+    try {
+      const { error } = await supabase
+        .from("activity_goals")
+        .update({ 
+          completed,
+          completed_at: completed ? new Date().toISOString() : null
+        })
+        .eq("id", goalId);
+
+      if (error) throw error;
+
+      setActivityGoals(prev => ({
+        ...prev,
+        [activityId]: (prev[activityId] || []).map(goal =>
+          goal.id === goalId ? { ...goal, completed } : goal
+        )
+      }));
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteActivityGoal = async (activityId: string, goalId: string) => {
+    try {
+      const { error } = await supabase
+        .from("activity_goals")
+        .delete()
+        .eq("id", goalId);
+
+      if (error) throw error;
+
+      setActivityGoals(prev => ({
+        ...prev,
+        [activityId]: (prev[activityId] || []).filter(goal => goal.id !== goalId)
+      }));
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
   };
 
   if (loading) {
@@ -355,22 +550,83 @@ const Index = () => {
           summary={summary}
           entries={entries}
           weekStart={currentWeekStart}
+          activityGoals={activityGoals}
           onUpdateGoal={handleUpdateGoal}
           onUpdateReflection={handleUpdateReflection}
           onUpdateEntry={handleUpdateEntry}
-          onStartTimer={(id, name) => setTimerActivity({ id, name })}
+          onStartTimer={(id, name, forDate) => setTimerActivity({ id, name, forDate })}
           onActivityAdded={loadDashboardData}
           onReorderActivities={handleReorderActivities}
           onMoveToEnd={handleMoveToEnd}
+          onAddActivityGoal={handleAddActivityGoal}
+          onToggleActivityGoal={handleToggleActivityGoal}
+          onDeleteActivityGoal={handleDeleteActivityGoal}
         />
 
         <ActivityTimer
           activityId={timerActivity?.id || null}
           activityName={timerActivity?.name || ""}
-          previousMinutes={timerActivity?.id ? (entries[timerActivity.id]?.[format(new Date(), "yyyy-MM-dd")] || 0) : 0}
+          forDate={timerActivity?.forDate || format(new Date(), "yyyy-MM-dd")}
+          previousMinutes={timerActivity?.id && timerActivity?.forDate ? (entries[timerActivity.id]?.[timerActivity.forDate] || 0) : 0}
+          dailyGoalMinutes={timerActivity?.id ? (() => {
+            const activity = activities.find(a => a.id === timerActivity.id);
+            const data = summary[timerActivity.id];
+            if (!data || data.targetValue === 0) return undefined;
+            
+            const isTime = (data.activity_type || activity?.activity_type || "time") === "time";
+            if (!isTime) return undefined; // Solo para actividades de tiempo
+            
+            // Calcular meta diaria dinámica
+            const today = new Date();
+            const weekDays = Array.from({ length: 7 }, (_, i) => addDays(currentWeekStart, i));
+            const totalRealized = weekDays.reduce((sum, d) => {
+              const dKey = format(d, "yyyy-MM-dd");
+              return sum + (entries[timerActivity.id]?.[dKey] || 0);
+            }, 0);
+            
+            const remaining = data.targetValue - (totalRealized / 60);
+            if (remaining <= 0) return undefined;
+            
+            const todayIndex = weekDays.findIndex(d => 
+              d.getFullYear() === today.getFullYear() &&
+              d.getMonth() === today.getMonth() &&
+              d.getDate() === today.getDate()
+            );
+            
+            if (todayIndex === -1) return undefined;
+            
+            const daysRemaining = 7 - todayIndex;
+            const dailyTarget = remaining / daysRemaining;
+            const dayOfWeek = today.getDay();
+            const adjustedTarget = dayOfWeek === 0 ? dailyTarget * 0.7 : dailyTarget;
+            
+            return Math.ceil(adjustedTarget * 60); // Convertir a minutos
+          })() : undefined}
           onStop={handleTimerStop}
           onCancel={() => setTimerActivity(null)}
         />
+
+        {/* Google Calendar */}
+        <div className="mt-8">
+          <div className="mb-4">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="h-8 w-1 bg-gradient-to-b from-primary to-primary/50 rounded-full"></div>
+              <h2 className="text-2xl font-display font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent tracking-tight">
+                Calendario
+              </h2>
+            </div>
+          </div>
+          <div className="rounded-lg overflow-hidden border-2 border-border shadow-lg p-4 bg-card">
+            <GoogleCalendar
+              apiKey={import.meta.env.VITE_GOOGLE_CALENDAR_API_KEY || ''}
+              clientId={import.meta.env.VITE_GOOGLE_OAUTH_CLIENT_ID || ''}
+              calendarIds={[
+                import.meta.env.VITE_GOOGLE_CALENDAR_PRIMARY,
+                import.meta.env.VITE_GOOGLE_CALENDAR_SECONDARY
+              ].filter(Boolean)}
+            />
+          </div>
+        </div>
       </div>
     </div>
   );

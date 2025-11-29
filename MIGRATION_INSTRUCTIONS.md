@@ -11,7 +11,7 @@ Esta actualización agrega soporte para dos tipos de actividades:
 
 ### 1. Abre el Editor SQL de Supabase
 
-Ve a: https://supabase.com/dashboard/project/kxotzmvtdgzlctcarrhh/sql/new
+Ve a: https://supabase.com/dashboard/project/YOUR_PROJECT_ID/sql/new
 
 ### 2. Copia y Ejecuta Este SQL
 
