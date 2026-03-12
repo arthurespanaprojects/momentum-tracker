@@ -4,9 +4,6 @@ import { useWeekNavigation } from "@/hooks/use-week-navigation";
 import { WeekNavigator } from "@/components/WeekNavigator";
 import { SummaryTable } from "@/components/SummaryTable";
 import { ActivityTimer } from "@/components/ActivityTimer";
-import { GoogleCalendar } from "@/components/GoogleCalendar";
-import { TodayTasks } from "@/components/TodayTasks";
-import { GoogleAuthProvider } from "@/contexts/GoogleAuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -526,17 +523,16 @@ const Index = () => {
   }
 
   return (
-    <GoogleAuthProvider clientId={import.meta.env.VITE_GOOGLE_OAUTH_CLIENT_ID || ''}>
-      <div className="min-h-screen bg-background p-8">
-        <div className="max-w-[1600px] mx-auto">
-        <div className="mb-8 relative">
+    <div className="min-h-screen bg-background p-4 sm:p-6 md:p-8 lg:p-10">
+      <div className="max-w-[1600px] mx-auto space-y-8">
+        <div className="relative">
           <div className="flex items-center gap-3 mb-2">
             <div className="h-10 w-1 bg-gradient-to-b from-primary to-primary/50 rounded-full"></div>
-            <h1 className="text-3xl font-display font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent tracking-tight">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-display font-bold bg-gradient-to-r from-primary to-emerald-400 bg-clip-text text-transparent tracking-tight">
               MOMENTUM
             </h1>
           </div>
-          <p className="text-sm text-muted-foreground ml-4 pl-3">
+          <p className="text-sm sm:text-base text-muted-foreground ml-4 pl-3">
             Seguimiento de Hábitos y Objetivos
           </p>
         </div>
@@ -548,23 +544,30 @@ const Index = () => {
           onToday={goToToday}
         />
 
-        <SummaryTable
-          activities={activities}
-          summary={summary}
-          entries={entries}
-          weekStart={currentWeekStart}
-          activityGoals={activityGoals}
-          onUpdateGoal={handleUpdateGoal}
-          onUpdateReflection={handleUpdateReflection}
-          onUpdateEntry={handleUpdateEntry}
-          onStartTimer={(id, name, forDate) => setTimerActivity({ id, name, forDate })}
-          onActivityAdded={loadDashboardData}
-          onReorderActivities={handleReorderActivities}
-          onMoveToEnd={handleMoveToEnd}
-          onAddActivityGoal={handleAddActivityGoal}
-          onToggleActivityGoal={handleToggleActivityGoal}
-          onDeleteActivityGoal={handleDeleteActivityGoal}
-        />
+        <div className="rounded-2xl border bg-card/50 backdrop-blur shadow-sm p-4 sm:p-6 2xl:p-8 relative overflow-hidden">
+          {/* Subtle gradient background effect for aesthetic */}
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent pointer-events-none" />
+          
+          <div className="relative z-10 w-full">
+            <SummaryTable
+              activities={activities}
+              summary={summary}
+              entries={entries}
+              weekStart={currentWeekStart}
+              activityGoals={activityGoals}
+              onUpdateGoal={handleUpdateGoal}
+              onUpdateReflection={handleUpdateReflection}
+              onUpdateEntry={handleUpdateEntry}
+              onStartTimer={(id, name, forDate) => setTimerActivity({ id, name, forDate })}
+              onActivityAdded={loadDashboardData}
+              onReorderActivities={handleReorderActivities}
+              onMoveToEnd={handleMoveToEnd}
+              onAddActivityGoal={handleAddActivityGoal}
+              onToggleActivityGoal={handleToggleActivityGoal}
+              onDeleteActivityGoal={handleDeleteActivityGoal}
+            />
+          </div>
+        </div>
 
         <ActivityTimer
           activityId={timerActivity?.id || null}
@@ -608,51 +611,8 @@ const Index = () => {
           onStop={handleTimerStop}
           onCancel={() => setTimerActivity(null)}
         />
-
-        {/* Tareas de Hoy y Mañana */}
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
-          <TodayTasks
-            calendarIds={[
-              import.meta.env.VITE_GOOGLE_CALENDAR_PRIMARY,
-              import.meta.env.VITE_GOOGLE_CALENDAR_SECONDARY
-            ].filter(Boolean)}
-            targetDate={new Date()}
-            title="Tareas de Hoy"
-          />
-          <TodayTasks
-            calendarIds={[
-              import.meta.env.VITE_GOOGLE_CALENDAR_PRIMARY,
-              import.meta.env.VITE_GOOGLE_CALENDAR_SECONDARY
-            ].filter(Boolean)}
-            targetDate={addDays(new Date(), 1)}
-            title="Tareas de Mañana"
-          />
-        </div>
-
-        {/* Google Calendar */}
-        <div className="mt-8">
-          <div className="mb-4">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="h-8 w-1 bg-gradient-to-b from-primary to-primary/50 rounded-full"></div>
-              <h2 className="text-2xl font-display font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent tracking-tight">
-                Calendario
-              </h2>
-            </div>
-          </div>
-          <div className="rounded-lg overflow-hidden border-2 border-border shadow-lg p-4 bg-card">
-            <GoogleCalendar
-              apiKey={import.meta.env.VITE_GOOGLE_CALENDAR_API_KEY || ''}
-              clientId={import.meta.env.VITE_GOOGLE_OAUTH_CLIENT_ID || ''}
-              calendarIds={[
-                import.meta.env.VITE_GOOGLE_CALENDAR_PRIMARY,
-                import.meta.env.VITE_GOOGLE_CALENDAR_SECONDARY
-              ].filter(Boolean)}
-            />
-          </div>
-        </div>
       </div>
     </div>
-    </GoogleAuthProvider>
   );
 };
 

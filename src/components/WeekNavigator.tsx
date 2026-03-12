@@ -10,13 +10,13 @@ interface WeekNavigatorProps {
 
 export function WeekNavigator({ weekDisplay, onPrevious, onNext, onToday }: WeekNavigatorProps) {
   return (
-    <div className="flex items-center justify-between mb-6">
-      <h2 className="text-2xl font-bold text-foreground">{weekDisplay}</h2>
-      <div className="flex gap-2">
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-0 mb-6 sm:mb-8">
+      <h2 className="text-xl sm:text-2xl font-bold text-foreground text-center sm:text-left">{weekDisplay}</h2>
+      <div className="flex gap-2 w-full sm:w-auto justify-center sm:justify-end">
         <Button variant="outline" size="icon" onClick={onPrevious}>
           <ChevronLeft className="h-4 w-4" />
         </Button>
-        <Button variant="outline" onClick={onToday}>
+        <Button variant="outline" onClick={onToday} className="flex-1 sm:flex-none">
           <Calendar className="h-4 w-4 mr-2" />
           Hoy
         </Button>

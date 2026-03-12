@@ -254,10 +254,10 @@ export function SummaryTable({
             </div>
           </div>
         )}
-        <table className="w-full border-collapse text-base">
+        <table className="w-full border-collapse text-sm sm:text-base">
           <thead>
-            <tr className="bg-muted">
-              <th className="p-2 text-left border border-border font-semibold text-foreground sticky left-0 bg-muted z-10 min-w-[140px]">Actividad</th>
+            <tr className="bg-muted/50 border-b-2 border-border/80">
+              <th className="p-2 sm:p-3 text-left font-semibold text-foreground sticky left-0 bg-muted/95 z-10 min-w-[120px] sm:min-w-[140px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Actividad</th>
               {weekDays.map((day) => {
                 const isToday = isSameDay(day, today);
                 const isSelected = isSameDay(day, selectedDay);
@@ -269,11 +269,11 @@ export function SummaryTable({
                     key={day.toISOString()}
                     onClick={() => isPastOrToday && setSelectedDay(day)}
                     className={cn(
-                      "p-2 text-center border border-border font-semibold min-w-[50px] max-w-[50px] transition-colors",
-                      isToday && "bg-primary/10",
-                      !isToday && "bg-muted",
-                      showSelectionRing && "ring-2 ring-primary ring-inset",
-                      isPastOrToday && "cursor-pointer hover:bg-primary/5"
+                      "p-1 sm:p-2 text-center font-semibold min-w-[45px] sm:min-w-[50px] max-w-[45px] sm:max-w-[50px] transition-all border-b border-border/50",
+                      isToday && "bg-primary/10 border-b-primary/50",
+                      !isToday && "bg-transparent",
+                      showSelectionRing && "ring-2 ring-primary/50 ring-inset rounded-t-sm",
+                      isPastOrToday && "cursor-pointer hover:bg-primary/5 hover:text-primary transition-colors"
                     )}
                   >
                     <div className="text-xs text-foreground">
@@ -285,9 +285,9 @@ export function SummaryTable({
                   </th>
                 );
               })}
-              <th className="p-2 text-center border border-border font-semibold text-foreground min-w-[70px] max-w-[70px]">Total</th>
-              <th className="p-2 text-center border border-border font-semibold text-foreground min-w-[90px] max-w-[90px]">Progreso</th>
-              <th className="p-2 text-center border border-border font-semibold text-foreground min-w-[90px] max-w-[90px]">Metas</th>
+              <th className="p-2 sm:p-3 text-center border-b border-border/50 font-semibold text-foreground min-w-[60px] sm:min-w-[70px] max-w-[60px] sm:max-w-[70px]">Total</th>
+              <th className="p-2 sm:p-3 text-center border-b border-border/50 font-semibold text-foreground min-w-[80px] sm:min-w-[90px] max-w-[80px] sm:max-w-[90px]">Progreso</th>
+              <th className="p-2 sm:p-3 text-center border-b border-border/50 font-semibold text-foreground min-w-[80px] sm:min-w-[90px] max-w-[80px] sm:max-w-[90px]">Metas</th>
             </tr>
           </thead>
           <tbody>
@@ -334,34 +334,34 @@ export function SummaryTable({
                   onDrop={(e) => handleDrop(e, activity.id)}
                   onDragEnd={handleDragEnd}
                 >
-                  <td className="p-2 border border-border font-medium text-foreground sticky left-0 bg-card z-10">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
+                  <td className="p-2 sm:p-3 border-b border-border/40 font-medium text-foreground sticky left-0 bg-card z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] group-hover:bg-muted/20 transition-colors">
+                    <div className="flex items-center justify-between gap-1 sm:gap-2">
+                      <div className="flex items-center gap-1 sm:gap-2 overflow-hidden">
                         <div 
-                          className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground transition-colors"
+                          className="cursor-grab active:cursor-grabbing text-muted-foreground/30 hover:text-foreground transition-colors"
                           title="Arrastrar para reordenar"
                           onMouseDown={() => setIsDraggingFromHandle(true)}
                           onMouseUp={() => setIsDraggingFromHandle(false)}
                         >
                           <GripVertical className="h-4 w-4" />
                         </div>
-                        <span className="text-base">{activity.name}</span>
+                        <span className="text-sm sm:text-base truncate">{activity.name}</span>
                       </div>
                       {isTime ? (
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-6 w-6 flex-shrink-0"
+                          className="h-6 w-6 sm:h-7 sm:w-7 flex-shrink-0 text-muted-foreground hover:text-primary hover:bg-primary/10"
                           onClick={() => onStartTimer(activity.id, activity.name, format(selectedDay, "yyyy-MM-dd"))}
                           title={`Iniciar cronómetro para ${format(selectedDay, "d MMM", { locale: es })}`}
                         >
-                          <Play className="h-3 w-3" />
+                          <Play className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                         </Button>
                       ) : (
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-6 w-6 flex-shrink-0"
+                          className="h-6 w-6 sm:h-7 sm:w-7 flex-shrink-0 text-muted-foreground hover:text-primary hover:bg-primary/10"
                           onClick={() => {
                             const selectedDayKey = format(selectedDay, "yyyy-MM-dd");
                             const currentValue = entries[activity.id]?.[selectedDayKey] || 0;
@@ -370,7 +370,7 @@ export function SummaryTable({
                           }}
                           title={`Sumar 1 a ${format(selectedDay, "d MMM", { locale: es })}`}
                         >
-                          <Plus className="h-3 w-3" />
+                          <Plus className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                         </Button>
                       )}
                     </div>
