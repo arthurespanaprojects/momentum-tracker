@@ -1,7 +1,7 @@
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, Play, X, GripVertical } from "lucide-react";
@@ -226,6 +226,9 @@ export function SummaryTable({
           <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Gestionar Actividades</DialogTitle>
+              <DialogDescription className="sr-only">
+                Añade o edita tus actividades para el seguimiento semanal.
+              </DialogDescription>
             </DialogHeader>
             <AddActivity 
               onActivityAdded={onActivityAdded} 
@@ -254,10 +257,10 @@ export function SummaryTable({
             </div>
           </div>
         )}
-        <table className="w-full border-collapse text-sm sm:text-base">
+        <table className="w-full border-collapse text-sm sm:text-base selection:bg-primary/20">
           <thead>
-            <tr className="bg-muted/50 border-b-2 border-border/80">
-              <th className="p-2 sm:p-3 text-left font-semibold text-foreground sticky left-0 bg-muted/95 z-10 min-w-[120px] sm:min-w-[140px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">Actividad</th>
+            <tr className="bg-muted/30 border-b-2 border-border/80 shadow-[0_4px_10px_rgba(0,0,0,0.2)] relative z-20">
+              <th className="p-2 sm:p-3 text-left font-semibold text-foreground sticky left-0 bg-muted/95 backdrop-blur-sm z-30 min-w-[120px] sm:min-w-[140px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.3)]">Actividad</th>
               {weekDays.map((day) => {
                 const isToday = isSameDay(day, today);
                 const isSelected = isSameDay(day, selectedDay);
@@ -269,11 +272,11 @@ export function SummaryTable({
                     key={day.toISOString()}
                     onClick={() => isPastOrToday && setSelectedDay(day)}
                     className={cn(
-                      "p-1 sm:p-2 text-center font-semibold min-w-[45px] sm:min-w-[50px] max-w-[45px] sm:max-w-[50px] transition-all border-b border-border/50",
-                      isToday && "bg-primary/10 border-b-primary/50",
+                      "p-1 sm:p-2 text-center font-semibold min-w-[45px] sm:min-w-[50px] max-w-[45px] sm:max-w-[50px] transition-all border-b border-border/30",
+                      isToday && "bg-primary/10 border-b-primary shadow-[inset_0_-2px_0_rgba(34,197,94,0.5)]",
                       !isToday && "bg-transparent",
-                      showSelectionRing && "ring-2 ring-primary/50 ring-inset rounded-t-sm",
-                      isPastOrToday && "cursor-pointer hover:bg-primary/5 hover:text-primary transition-colors"
+                      showSelectionRing && "ring-1 ring-primary/40 ring-inset bg-primary/5",
+                      isPastOrToday && "cursor-pointer hover:bg-primary/10 hover:text-primary transition-all duration-300"
                     )}
                   >
                     <div className="text-xs text-foreground">
@@ -285,12 +288,12 @@ export function SummaryTable({
                   </th>
                 );
               })}
-              <th className="p-2 sm:p-3 text-center border-b border-border/50 font-semibold text-foreground min-w-[60px] sm:min-w-[70px] max-w-[60px] sm:max-w-[70px]">Total</th>
-              <th className="p-2 sm:p-3 text-center border-b border-border/50 font-semibold text-foreground min-w-[80px] sm:min-w-[90px] max-w-[80px] sm:max-w-[90px]">Progreso</th>
-              <th className="p-2 sm:p-3 text-center border-b border-border/50 font-semibold text-foreground min-w-[80px] sm:min-w-[90px] max-w-[80px] sm:max-w-[90px]">Metas</th>
+              <th className="p-2 sm:p-3 text-center border-b border-border/30 font-semibold text-foreground min-w-[60px] sm:min-w-[70px] max-w-[60px] sm:max-w-[70px]">Total</th>
+              <th className="p-2 sm:p-3 text-center border-b border-border/30 font-semibold text-foreground min-w-[80px] sm:min-w-[90px] max-w-[80px] sm:max-w-[90px]">Progreso</th>
+              <th className="p-2 sm:p-3 text-center border-b border-border/30 font-semibold text-foreground min-w-[80px] sm:min-w-[90px] max-w-[80px] sm:max-w-[90px]">Metas</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-border/20">
             {activities.map((activity) => {
               const data = summary[activity.id] || { 
                 targetValue: 0, 
@@ -334,7 +337,7 @@ export function SummaryTable({
                   onDrop={(e) => handleDrop(e, activity.id)}
                   onDragEnd={handleDragEnd}
                 >
-                  <td className="p-2 sm:p-3 border-b border-border/40 font-medium text-foreground sticky left-0 bg-card z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] group-hover:bg-muted/20 transition-colors">
+                  <td className="p-2 sm:p-3 border-r border-border/20 font-medium text-foreground sticky left-0 bg-card/95 backdrop-blur-md z-10 shadow-[2px_0_10px_-4px_rgba(0,0,0,0.5)] group-hover:bg-muted/40 transition-colors">
                     <div className="flex items-center justify-between gap-1 sm:gap-2">
                       <div className="flex items-center gap-1 sm:gap-2 overflow-hidden">
                         <div 
@@ -345,23 +348,23 @@ export function SummaryTable({
                         >
                           <GripVertical className="h-4 w-4" />
                         </div>
-                        <span className="text-sm sm:text-base truncate">{activity.name}</span>
+                        <span className="text-sm sm:text-base truncate drop-shadow-sm">{activity.name}</span>
                       </div>
                       {isTime ? (
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-6 w-6 sm:h-7 sm:w-7 flex-shrink-0 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                          className="h-6 w-6 sm:h-7 sm:w-7 flex-shrink-0 text-muted-foreground transition-colors hover:text-primary hover:bg-primary/20 hover:shadow-[0_0_10px_rgba(34,197,94,0.3)]"
                           onClick={() => onStartTimer(activity.id, activity.name, format(selectedDay, "yyyy-MM-dd"))}
                           title={`Iniciar cronómetro para ${format(selectedDay, "d MMM", { locale: es })}`}
                         >
-                          <Play className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                          <Play className="h-3 w-3 sm:h-3.5 sm:w-3.5 ml-0.5" />
                         </Button>
                       ) : (
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-6 w-6 sm:h-7 sm:w-7 flex-shrink-0 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                          className="h-6 w-6 sm:h-7 sm:w-7 flex-shrink-0 text-muted-foreground transition-colors hover:text-primary hover:bg-primary/20 hover:shadow-[0_0_10px_rgba(34,197,94,0.3)]"
                           onClick={() => {
                             const selectedDayKey = format(selectedDay, "yyyy-MM-dd");
                             const currentValue = entries[activity.id]?.[selectedDayKey] || 0;
@@ -476,8 +479,9 @@ export function SummaryTable({
                       <td
                         key={dateKey}
                         className={cn(
-                          "p-2 border border-border text-center cursor-text relative transition-colors duration-300 overflow-hidden",
-                          bgClass
+                          "p-2 border-r border-border/20 text-center cursor-text relative transition-all duration-300 overflow-hidden",
+                          bgClass,
+                          "hover:brightness-125"
                         )}
                       >
                         {showGoalBadge && (
@@ -526,29 +530,29 @@ export function SummaryTable({
                       </td>
                     );
                   })}
-                  <td className="p-2 border border-border text-center max-w-[70px]">
+                  <td className="p-2 border-r border-border/20 text-center max-w-[70px]">
                     <span 
-                      className="font-semibold"
+                      className="font-bold drop-shadow-[0_0_8px_rgba(255,255,255,0.1)] text-lg sm:text-base"
                       style={{ 
                         color: percentage >= 100 
-                          ? '#22c55e' 
+                          ? '#4ade80' // Neo emerald
                           : percentage >= 75 
-                            ? '#10b981' 
+                            ? '#34d399' 
                             : percentage >= 50
-                              ? '#059669'
+                              ? '#10b981'
                               : percentage >= 25
-                                ? '#047857'
+                                ? '#059669'
                                 : realizedInSameUnit > 0
-                                  ? '#065f46'
-                                  : '#6b7280'
+                                  ? '#047857'
+                                  : 'hsl(var(--muted-foreground))'
                       }}
                     >
                       {displayRealized}
                     </span>
-                    <span className="text-sm text-muted-foreground ml-1">{isTime ? "hrs" : "vcs"}</span>
+                    <span className="text-xs text-muted-foreground/60 block -mt-1">{isTime ? "hrs" : "vcs"}</span>
                   </td>
                   <td 
-                    className="p-2 border border-border cursor-text"
+                    className="p-2 border-r border-border/20 cursor-text group/goal"
                     onClick={(e) => {
                       const editable = e.currentTarget.querySelector('[contenteditable]');
                       if (editable && e.target !== editable) {
@@ -585,21 +589,21 @@ export function SummaryTable({
                               e.currentTarget.blur();
                             }
                           }}
-                          className="font-semibold text-foreground focus:outline-none"
+                          className="font-bold text-foreground focus:outline-none focus:bg-primary/20 px-1 rounded transition-colors text-lg sm:text-base"
                         >
                           {displayTarget || 0}
                         </span>
-                        <span className="text-sm text-muted-foreground ml-1">
+                        <span className="text-xs text-muted-foreground/60 block -mt-1">
                           {isTime ? "hrs" : "vcs"}
                         </span>
                       </div>
-                      <div className="relative h-3 w-full overflow-hidden rounded-full" style={{ backgroundColor: 'hsl(240, 4%, 16%)' }}>
+                      <div className="relative h-2 sm:h-2.5 w-full overflow-hidden rounded-full shadow-inner bg-black/40 border border-white/5">
                         <div
-                          className="h-full transition-all duration-500 ease-out"
+                          className="h-full transition-all duration-700 ease-out relative"
                           style={{ 
                             width: `${Math.min(percentage, 100)}%`,
                             background: percentage >= 100 
-                              ? 'linear-gradient(90deg, #22c55e 0%, #4ade80 100%)'
+                              ? 'linear-gradient(90deg, #10b981 0%, #34d399 100%)' // Emerald glow
                               : percentage >= 75
                                 ? 'linear-gradient(90deg, #059669 0%, #10b981 100%)'
                                 : percentage >= 50
@@ -607,10 +611,14 @@ export function SummaryTable({
                                   : percentage >= 25
                                     ? 'linear-gradient(90deg, #064e3b 0%, #047857 100%)'
                                     : percentage > 0
-                                      ? '#065f46'
+                                      ? '#064e3b'
                                       : 'transparent'
                           }}
-                        />
+                        >
+                          {percentage >= 100 && (
+                            <div className="absolute inset-0 bg-white/20 animate-[pulse_2s_ease-in-out_infinite]" />
+                          )}
+                        </div>
                         {isOverTarget && (
                           <div className="absolute inset-0 pointer-events-none">
                             <div 
@@ -629,8 +637,8 @@ export function SummaryTable({
                       </span>
                     </div>
                   </td>
-                  <td className="border border-border p-2 max-w-[90px]">
-                    <div className="flex flex-col gap-1">
+                  <td className="p-2 sm:p-3 relative align-top">
+                    <div className="flex flex-col gap-1.5 opacity-80 hover:opacity-100 transition-opacity">
                       {(goals[activity.id] || []).map((goal, idx) => (
                         <div key={goal.id || idx} className="flex items-start gap-1 group">
                           <Checkbox

@@ -525,14 +525,14 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-background p-4 sm:p-6 md:p-8 lg:p-10">
       <div className="max-w-[1600px] mx-auto space-y-8">
-        <div className="relative">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="h-10 w-1 bg-gradient-to-b from-primary to-primary/50 rounded-full"></div>
-            <h1 className="text-3xl sm:text-4xl md:text-5xl font-display font-bold bg-gradient-to-r from-primary to-emerald-400 bg-clip-text text-transparent tracking-tight">
+        <div className="relative mb-12 flex flex-col items-center sm:items-start text-center sm:text-left">
+          <div className="flex items-center gap-3 mb-2 justify-center sm:justify-start">
+            <div className="h-12 w-1.5 bg-gradient-to-b from-primary via-primary to-primary/20 rounded-full shadow-[0_0_15px_rgba(34,197,94,0.5)]"></div>
+            <h1 className="text-4xl sm:text-5xl md:text-6xl font-display font-extrabold bg-gradient-to-br from-white via-white to-white/40 bg-clip-text text-transparent tracking-tighter drop-shadow-sm">
               MOMENTUM
             </h1>
           </div>
-          <p className="text-sm sm:text-base text-muted-foreground ml-4 pl-3">
+          <p className="text-sm sm:text-base text-muted-foreground/80 sm:ml-5 pl-3 font-medium tracking-wide uppercase text-primary/80">
             Seguimiento de Hábitos y Objetivos
           </p>
         </div>

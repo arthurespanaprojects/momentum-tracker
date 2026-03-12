@@ -8,109 +8,102 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
+    --background: 224 71% 4%;
+    --foreground: 213 31% 91%;
 
-    --card: 240 10% 8%;
-    --card-foreground: 0 0% 98%;
+    --card: 224 55% 6%;
+    --card-foreground: 213 31% 91%;
 
-    --popover: 240 10% 8%;
-    --popover-foreground: 0 0% 98%;
+    --popover: 224 55% 6%;
+    --popover-foreground: 213 31% 91%;
 
-    --primary: 142 76% 36%;
-    --primary-foreground: 0 0% 98%;
+    --primary: 153 60% 53%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 240 4% 16%;
-    --secondary-foreground: 0 0% 98%;
+    --secondary: 224 45% 15%;
+    --secondary-foreground: 210 40% 98%;
 
-    --muted: 240 4% 16%;
-    --muted-foreground: 240 5% 64.9%;
+    --muted: 224 45% 12%;
+    --muted-foreground: 215 20.2% 65.1%;
 
-    --accent: 142 76% 36%;
-    --accent-foreground: 0 0% 98%;
+    --accent: 153 60% 53%;
+    --accent-foreground: 0 0% 100%;
 
-    --success: 142 76% 36%;
-    --success-foreground: 0 0% 98%;
+    --success: 153 60% 53%;
+    --success-foreground: 0 0% 100%;
     
     --warning: 48 96% 53%;
-    --warning-foreground: 240 10% 3.9%;
+    --warning-foreground: 224 71% 4%;
 
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 0 0% 98%;
+    --destructive: 350 89% 60%;
+    --destructive-foreground: 210 40% 98%;
 
-    --border: 240 4% 16%;
-    --input: 240 4% 16%;
-    --ring: 142 76% 36%;
+    --border: 224 45% 12%;
+    --input: 224 45% 15%;
+    --ring: 153 60% 53%;
 
-    --radius: 0.5rem;
+    --radius: 0.75rem;
     
-    /* Heatmap colors - emerald gradient */
-    --heat-0: 240 10% 8%;
-    --heat-1: 160 20% 20%;
-    --heat-2: 156 30% 28%;
-    --heat-3: 150 40% 36%;
-    --heat-4: 145 60% 42%;
-    --heat-5: 142 76% 36%;
+    /* Heatmap colors - neon emerald over deep blue */
+    --heat-0: 224 55% 6%;
+    --heat-1: 153 40% 15%;
+    --heat-2: 153 45% 25%;
+    --heat-3: 153 50% 35%;
+    --heat-4: 153 55% 45%;
+    --heat-5: 153 60% 53%;
 
-    --sidebar-background: 0 0% 98%;
-
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-background: 224 71% 4%;
+    --sidebar-foreground: 213 31% 91%;
+    --sidebar-primary: 224 55% 12%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 224 45% 15%;
+    --sidebar-accent-foreground: 213 31% 91%;
+    --sidebar-border: 224 45% 12%;
+    --sidebar-ring: 153 60% 53%;
   }
 
   .dark {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
+    --background: 224 71% 4%;
+    --foreground: 213 31% 91%;
 
-    --card: 240 10% 8%;
-    --card-foreground: 0 0% 98%;
+    --card: 224 55% 6%;
+    --card-foreground: 213 31% 91%;
 
-    --popover: 240 10% 8%;
-    --popover-foreground: 0 0% 98%;
+    --popover: 224 55% 6%;
+    --popover-foreground: 213 31% 91%;
 
-    --primary: 142 76% 36%;
-    --primary-foreground: 0 0% 98%;
+    --primary: 153 60% 53%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 240 4% 16%;
-    --secondary-foreground: 0 0% 98%;
+    --secondary: 224 45% 15%;
+    --secondary-foreground: 210 40% 98%;
 
-    --muted: 240 4% 16%;
-    --muted-foreground: 240 5% 64.9%;
+    --muted: 224 45% 12%;
+    --muted-foreground: 215 20.2% 65.1%;
 
-    --accent: 142 76% 36%;
-    --accent-foreground: 0 0% 98%;
+    --accent: 153 60% 53%;
+    --accent-foreground: 0 0% 100%;
 
-    --success: 142 76% 36%;
-    --success-foreground: 0 0% 98%;
+    --success: 153 60% 53%;
+    --success-foreground: 0 0% 100%;
     
     --warning: 48 96% 53%;
-    --warning-foreground: 240 10% 3.9%;
+    --warning-foreground: 224 71% 4%;
 
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 0 0% 98%;
+    --destructive: 350 89% 60%;
+    --destructive-foreground: 210 40% 98%;
 
-    --border: 240 4% 16%;
-    --input: 240 4% 16%;
-    --ring: 142 76% 36%;
+    --border: 224 45% 12%;
+    --input: 224 45% 15%;
+    --ring: 153 60% 53%;
     
-    /* Heatmap colors - emerald gradient */
-    --heat-0: 240 10% 8%;
-    --heat-1: 160 20% 20%;
-    --heat-2: 156 30% 28%;
-    --heat-3: 150 40% 36%;
-    --heat-4: 145 60% 42%;
-    --heat-5: 142 76% 36%;
+    /* Heatmap colors - neon emerald over deep blue */
+    --heat-0: 224 55% 6%;
+    --heat-1: 153 40% 15%;
+    --heat-2: 153 45% 25%;
+    --heat-3: 153 50% 35%;
+    --heat-4: 153 55% 45%;
+    --heat-5: 153 60% 53%;
   }
 }
 
